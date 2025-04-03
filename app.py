@@ -86,9 +86,10 @@ template_index = """
         <br>
         <a href="/resumo" style="width: 80%; text-align: center; margin-top: 20px;">Final do jogo</a>
     </div>
-    
+
+    <!-- ⏱️ Script do Timer (agora no fim do body!) -->
     <script>
-        let totalSeconds = 4 * 60 * 60; // 4 horas
+        let totalSeconds = 4 * 60 * 60;
         let paused = true;
         let started = false;
 
@@ -110,12 +111,14 @@ template_index = """
             if (!started) {
                 started = true;
                 paused = false;
+                console.log("⏱️ Timer iniciado!");
             }
         }
 
         function toggleTimer() {
             if (started) {
                 paused = !paused;
+                console.log("⏸️ Pausado:", paused);
             }
         }
 
