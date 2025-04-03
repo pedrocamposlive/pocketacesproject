@@ -1,12 +1,7 @@
+import os
 from flask import Flask, render_template_string, request, redirect, url_for
 
-import os
-
 app = Flask(__name__)
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
 
 class Jogador:
     def __init__(self, nome):
@@ -94,5 +89,8 @@ def finalizar(nome):
 def resumo():
     return render_template_string(template_resumo, jogadores=jogadores)
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# 👇 Esse é o único ponto de entrada necessário para o Render funcionar corretamente
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
+
