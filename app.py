@@ -87,17 +87,16 @@ template_index = """
         <a href="/resumo" style="width: 80%; text-align: center; margin-top: 20px;">Final do jogo</a>
     </div>
 
-    <!-- ⏱️ Script do Timer (agora no fim do body!) -->
     <script>
-        let totalSeconds = 4 * 60 * 60;
-        let paused = true;
-        let started = false;
+        var totalSeconds = 4 * 60 * 60;
+        var paused = true;
+        var started = false;
 
         function formatTime(seconds) {
-            const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
-            const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
-            const s = String(seconds % 60).padStart(2, '0');
-            return \`\${h}:\${m}:\${s}\`;
+            var h = String(Math.floor(seconds / 3600)).padStart(2, '0');
+            var m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+            var s = String(seconds % 60).padStart(2, '0');
+            return h + ":" + m + ":" + s;
         }
 
         function updateTimer() {
