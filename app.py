@@ -29,6 +29,21 @@ template_index = """
 <head>
     <title>POKER & RESENHA</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- 🔗 PWA Manifesto e Ícone -->
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" href="/static/pwa-icon-192.png" type="image/png">
+    <meta name="theme-color" content="#001133">
+
+    <!-- ⚙️ Service Worker -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js')
+          .then(() => console.log("✅ Service Worker registrado"))
+          .catch(err => console.error("Erro ao registrar SW:", err));
+      }
+    </script>
+
     <style>
         body { background-color: #001; color: #fff; font-family: Arial, sans-serif; margin: 0; padding: 0;
                min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
