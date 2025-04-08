@@ -205,8 +205,6 @@ template_index = """template_index = """
 </html>
 """
 
-"""
-
 template_resumo = """
 <!DOCTYPE html>
 <html>
