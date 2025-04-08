@@ -23,19 +23,17 @@ class Jogador:
 jogadores = {}
 
 # --- Templates HTML ---
-template_index = """
+template_index = """template_index = """
 <!DOCTYPE html>
 <html>
 <head>
     <title>POKER & RESENHA</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <!-- 🔗 PWA Manifesto e Ícone -->
+
     <link rel="manifest" href="/static/manifest.json">
-    <link rel="icon" href="/static/pwa-icon-192.png" type="image/png">
+    <link rel="icon" href="/static/pwa-icon-192-poker.png" type="image/png">
     <meta name="theme-color" content="#001133">
 
-    <!-- ⚙️ Service Worker -->
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/static/sw.js')
@@ -77,29 +75,14 @@ template_index = """
             <button onclick="toggleTimer()">Pausar/Retomar</button>
         </div>
         <h2>Adicionar Jogador</h2>
-        <form method="post" action="/add" style="width: 100%; text-align: center;">
-            <input type="text" name="nome" required placeholder="Nome do Jogador">
+        <form id="addForm" style="width: 100%; text-align: center;">
+            <input type="text" id="nomeInput" required placeholder="Nome do Jogador">
             <button type="submit">Adicionar</button>
         </form>
         <h2>Jogadores</h2>
-        <ul>
-        {% for j in jogadores.values() %}
-            <li>
-                <strong>{{ j.nome }}</strong><br>
-                Buy-ins: {{ j.buy_ins }} | Rebuys: {{ j.rebuys }}<br>
-                <div class="actions">
-                    <a href="/rebuy/{{ j.nome }}/add">+ Rebuy</a>
-                    <a href="/rebuy/{{ j.nome }}/sub">- Rebuy</a>
-                </div>
-                <form action="/finalizar/{{ j.nome }}" method="post" class="inline">
-                    <input type="number" name="fichas" min="0" placeholder="Fichas finais">
-                    <button type="submit">Registrar</button>
-                </form>
-            </li>
-        {% endfor %}
-        </ul>
+        <ul id="jogadoresList"></ul>
         <br>
-        <a href="/resumo" style="width: 80%; text-align: center; margin-top: 20px;">Final do jogo</a>
+        <button onclick="limparEstado()" style="width: 80%;">🔄 Resetar Mesa</button>
     </div>
 
     <script>
@@ -125,21 +108,103 @@ template_index = """
             if (!started) {
                 started = true;
                 paused = false;
-                console.log("⏱️ Timer iniciado!");
             }
         }
 
         function toggleTimer() {
             if (started) {
                 paused = !paused;
-                console.log("⏸️ Pausado:", paused);
             }
         }
 
         setInterval(updateTimer, 1000);
+
+        // ========== LOCALSTORAGE ==========
+        let jogadores = {};
+
+        function salvarEstado() {
+            localStorage.setItem("jogadores", JSON.stringify(jogadores));
+        }
+
+        function carregarEstado() {
+            const salvo = localStorage.getItem("jogadores");
+            if (salvo) {
+                jogadores = JSON.parse(salvo);
+                renderJogadores();
+            }
+        }
+
+        function renderJogadores() {
+            const ul = document.getElementById("jogadoresList");
+            ul.innerHTML = "";
+            for (const nome in jogadores) {
+                const j = jogadores[nome];
+                const li = document.createElement("li");
+                li.innerHTML = `
+                    <strong>${j.nome}</strong><br>
+                    Buy-ins: ${j.buy_ins} | Rebuys: ${j.rebuys}<br>
+                    <div class="actions">
+                        <button onclick="mudarRebuy('${nome}', 1)">+ Rebuy</button>
+                        <button onclick="mudarRebuy('${nome}', -1)">- Rebuy</button>
+                    </div>
+                    <form onsubmit="return registrarFichas('${nome}', this)">
+                        <input type="number" name="fichas" min="0" placeholder="Fichas finais">
+                        <button type="submit">Registrar</button>
+                    </form>
+                `;
+                ul.appendChild(li);
+            }
+        }
+
+        function mudarRebuy(nome, delta) {
+            if (jogadores[nome]) {
+                jogadores[nome].rebuys += delta;
+                if (jogadores[nome].rebuys < 0) jogadores[nome].rebuys = 0;
+                salvarEstado();
+                renderJogadores();
+            }
+        }
+
+        function registrarFichas(nome, form) {
+            const fichas = parseInt(form.fichas.value);
+            if (!isNaN(fichas)) {
+                jogadores[nome].fichas_finais = fichas;
+                salvarEstado();
+                renderJogadores();
+            }
+            return false;
+        }
+
+        function limparEstado() {
+            if (confirm("Tem certeza que deseja resetar a mesa?")) {
+                localStorage.removeItem("jogadores");
+                jogadores = {};
+                renderJogadores();
+            }
+        }
+
+        document.getElementById("addForm").addEventListener("submit", function (e) {
+            e.preventDefault();
+            const nome = document.getElementById("nomeInput").value.trim();
+            if (nome && !jogadores[nome]) {
+                jogadores[nome] = {
+                    nome: nome,
+                    buy_ins: 1,
+                    rebuys: 0,
+                    fichas_finais: 0
+                };
+                document.getElementById("nomeInput").value = "";
+                salvarEstado();
+                renderJogadores();
+            }
+        });
+
+        carregarEstado();
     </script>
 </body>
 </html>
+"""
+
 """
 
 template_resumo = """
