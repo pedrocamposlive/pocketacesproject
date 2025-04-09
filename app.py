@@ -6,7 +6,7 @@ app = Flask(__name__)
 # --- Dados da Mesa ---
 jogadores = {}  # não será usado nesse modo, mas mantido para compatibilidade
 
-# --- Template com LocalStorage + PWA ---
+# --- Template com LocalStorage + PWA + Resumo Final ---
 template_index = """
 <!DOCTYPE html>
 <html>
@@ -48,6 +48,10 @@ template_index = """
         #timer-controls { text-align: center; margin-bottom: 30px; width: 100%; }
         h1, h2 { text-align: center; width: 100%; }
         .actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; width: 100%; }
+        #resumoFinal { display: none; margin-top: 30px; width: 100%; text-align: center; }
+        #resumoFinal table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        #resumoFinal th, #resumoFinal td { border: 1px solid #888; padding: 8px; text-align: center; }
+        #resumoFinal th { background-color: #222; }
     </style>
 </head>
 <body>
@@ -66,7 +70,9 @@ template_index = """
         <h2>Jogadores</h2>
         <ul id="jogadoresList"></ul>
         <br>
+        <button onclick="mostrarResumo()" style="width: 80%;">📊 Finalizar Mesa</button>
         <button onclick="limparEstado()" style="width: 80%;">🔄 Resetar Mesa</button>
+        <div id="resumoFinal"></div>
     </div>
 
     <script>
@@ -159,11 +165,26 @@ template_index = """
             return false;
         }
 
+        function mostrarResumo() {
+            const div = document.getElementById("resumoFinal");
+            let html = `<h2>Resumo Final</h2><table><tr><th>Nome</th><th>Buy-ins</th><th>Rebuys</th><th>Total</th><th>Final</th><th>Saldo</th></tr>`;
+            for (const nome in jogadores) {
+                const j = jogadores[nome];
+                const total = (j.buy_ins + j.rebuys) * 50;
+                const saldo = j.fichas_finais - total;
+                html += `<tr><td>${j.nome}</td><td>${j.buy_ins}</td><td>${j.rebuys}</td><td>${total}</td><td>${j.fichas_finais}</td><td>${saldo}</td></tr>`;
+            }
+            html += `</table>`;
+            div.innerHTML = html;
+            div.style.display = "block";
+        }
+
         function limparEstado() {
             if (confirm("Tem certeza que deseja resetar a mesa?")) {
                 localStorage.removeItem("jogadores");
                 jogadores = {};
                 renderJogadores();
+                document.getElementById("resumoFinal").style.display = "none";
             }
         }
 
