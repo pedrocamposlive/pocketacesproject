@@ -1,0 +1,32 @@
+<div class="card mt-4">
+    <div class="card-header">
+        <h4>Auditoria do Jogo</h4>
+    </div>
+    <div class="card-body">
+        <p>
+            <strong>Total de Fichas que Entraram em Jogo:</strong> 
+            {{ total_chips_in_play }}
+        </p>
+        <p>
+            <strong>Soma dos Stacks Finais Informados:</strong> 
+            {{ total_final_chips }}
+        </p>
+        <hr>
+        
+        {% if discrepancy == 0 and total_final_chips > 0 %}
+            <div class="alert alert-success" role="alert">
+                <h4 class="alert-heading">Caixa Fechado!</h4>
+                <p>Discrepância de <strong>{{ discrepancy }}</strong> fichas. A contagem está correta!</p>
+            </div>
+        {% elif total_final_chips == 0 %}
+            <div class="alert alert-info" role="alert">
+                Aguardando o preenchimento dos stacks finais para auditar.
+            </div>
+        {% else %}
+            <div class="alert alert-danger" role="alert">
+                <h4 class="alert-heading">Atenção: Erro no Caixa!</h4>
+                <p>Há uma diferença de <strong>{{ discrepancy }}</strong> fichas. Por favor, reconte os stacks de todos os jogadores.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
