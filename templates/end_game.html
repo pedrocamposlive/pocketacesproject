@@ -1,0 +1,26 @@
+{% extends 'layout.html' %} {% block content %}
+Encerrar Jogo: {{ game.name }}
+Voltar
+Informe o Stack Final de Cada Jogador
+{% for player in players %}
+{{ player.name }} 
+Fichas
+{% endfor %}
+Salvar Stacks e Auditar
+Auditoria do Jogo
+Total de Fichas que Entraram em Jogo: {{ total_chips_in_play }}
+
+Soma dos Stacks Finais Informados: {{ total_final_chips }}
+
+{% if total_final_chips == 0 %}
+Aguardando o preenchimento dos stacks finais para auditar.
+{% elif discrepancy == 0 %}
+Caixa Fechado!
+Discrepância de {{ discrepancy }} fichas. A contagem está correta!
+
+{% else %}
+Atenção: Erro no Caixa!
+Há uma diferença de {{ discrepancy }} fichas. Por favor, reconte os stacks de todos os jogadores.
+
+{% endif %}
+{% endblock %}
