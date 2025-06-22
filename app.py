@@ -169,9 +169,9 @@ def end_game(game_id):
                            discrepancy=discrepancy)
 
 # Ponto de entrada para executar o aplicativo
-if __name__ == '__main__':
+#if __name__ == '__main__':
     # Cria o banco de dados se ele não existir
-    with app.app_context():
-        db.create_all()
-    app.run(debug=True)
+ #   with app.app_context():
+  #      db.create_all()
+  #  app.run(debug=True)
 
