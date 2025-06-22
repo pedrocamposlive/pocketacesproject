@@ -1,0 +1,19 @@
+{% extends 'layout.html' %} {% block content %}
+{{ game.name }}
+Encerrar Jogo
+Apagar Jogo
+Adicionar Jogador
+Nome do Jogador
+ Adicionar
+Jogadores na Mesa
+{% for player in players %}
+{{ player.name }}
+Buy-ins:
+-
+{{ player.buy_ins }}
++
+Remover
+{% else %}
+Nenhum jogador na mesa.
+{% endfor %}
+{% endblock %}
