@@ -2,10 +2,10 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h2>{{ game.name }}</h2>
+  <h2 class="mb-0">{{ game.name }}</h2>
   <div class="d-flex gap-2">
     <a href="{{ url_for('end_game', game_id=game.id) }}" class="btn btn-success">Encerrar Jogo</a>
-    <form method="POST" action="{{ url_for('delete_game', game_id=game.id) }}" onsubmit="return confirm('Tem certeza que deseja apagar este jogo? Esta ação não pode ser desfeita.');">
+    <form method="POST" action="{{ url_for('delete_game', game_id=game.id) }}" onsubmit="return confirm('Tem certeza que deseja apagar este jogo? Esta ação não pode ser desfeita.');" class="d-inline">
       <button type="submit" class="btn btn-danger">Apagar Jogo</button>
     </form>
   </div>
@@ -17,41 +17,42 @@
     <h5 class="card-title">Adicionar Jogador</h5>
     <form method="POST" action="{{ url_for('add_player', game_id=game.id) }}" class="d-flex gap-2">
       <input type="text" class="form-control" name="player_name" placeholder="Nome do Jogador" required>
-      <button type="submit" class="btn btn-primary">Adicionar</button>
+      <button type="submit" class="btn btn-primary">Adicionar (Buy-in: {{ cash_value }})</button>
     </form>
   </div>
 </div>
 
 <!-- Lista de Jogadores -->
-<h3>Jogadores na Mesa</h3>
 <div class="list-group">
   {% for player in players %}
-    <div class="list-group-item bg-dark text-light d-flex justify-content-between align-items-center">
-      <div>
-        <strong>{{ player.name }}</strong>
-      </div>
-      <div class="d-flex align-items-center gap-3">
-        <!-- Controles de Buy-in -->
-        <div class="d-flex align-items-center gap-2">
-          <span>Buy-ins:</span>
-          <form method="POST" action="{{ url_for('update_buyins', player_id=player.id) }}" class="d-inline">
-            <input type="hidden" name="action" value="remove">
-            <button type="submit" class="btn btn-outline-secondary btn-sm">-</button>
+    <div class="list-group-item bg-dark text-light border-secondary p-3">
+      <div class="d-flex justify-content-between align-items-center">
+        <!-- Informações do Jogador -->
+        <div>
+          <h5 class="mb-1">{{ player.name }}</h5>
+          <small class="text-white-50">
+            Total Investido: <strong>{{ player.buy_ins * cash_value }} fichas</strong>
+            {% if player.buy_ins > 1 %}
+              (1 Buy-in + {{ player.buy_ins - 1 }} Rebuys)
+            {% else %}
+              (1 Buy-in)
+            {% endif %}
+          </small>
+        </div>
+        
+        <!-- Ações do Jogador -->
+        <div class="d-flex gap-2">
+          <form method="POST" action="{{ url_for('rebuy', player_id=player.id) }}" class="d-inline">
+            <button type="submit" class="btn btn-warning">+ Rebuy ({{ cash_value }})</button>
           </form>
-          <span class="badge bg-primary rounded-pill fs-6">{{ player.buy_ins }}</span>
-          <form method="POST" action="{{ url_for('update_buyins', player_id=player.id) }}" class="d-inline">
-            <input type="hidden" name="action" add">
-            <button type="submit" class="btn btn-outline-secondary btn-sm">+</button>
+          <form method="POST" action="{{ url_for('delete_player', player_id=player.id) }}" class="d-inline">
+            <button type="submit" class="btn btn-outline-danger btn-sm">X</button>
           </form>
         </div>
-        <!-- Botão de Remover Jogador -->
-        <form method="POST" action="{{ url_for('delete_player', player_id=player.id) }}" class="d-inline">
-          <button type="submit" class="btn btn-outline-danger btn-sm">Remover</button>
-        </form>
       </div>
     </div>
   {% else %}
-    <div class="list-group-item bg-dark text-light">Nenhum jogador na mesa.</div>
+    <div class="list-group-item bg-dark text-light border-secondary">Nenhum jogador na mesa.</div>
   {% endfor %}
 </div>
 {% endblock %}
