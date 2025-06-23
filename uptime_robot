@@ -1,0 +1,21 @@
+Passo a Passo para configurar:
+
+Crie uma conta gratuita: Vá para uptimerobot.com e crie sua conta.
+
+Adicione um novo monitor: No seu painel (dashboard), clique em "Add New Monitor".
+
+Configure o Monitor:
+
+Monitor Type: Escolha HTTP(s).
+
+Friendly Name: Dê um nome, como Pocket Aces Manager.
+
+URL (or IP): Cole a URL do seu aplicativo: https://pocketacesproject.onrender.com
+
+Monitoring Interval: Defina para 5 minutes. Este é o ponto mais importante.
+
+Deixe as outras opções como estão.
+
+Salve: Clique em "Create Monitor".
+
+E é isso! A partir de agora, o UptimeRobot vai visitar seu site a cada 5 minutos, 24 horas por dia, 7 dias por semana, mantendo seu serviço sempre ativo e pronto para receber visitas sem o atraso do "acordar".
