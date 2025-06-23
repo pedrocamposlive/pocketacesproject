@@ -1,26 +1,64 @@
-{% extends 'layout.html' %} {% block content %}
-Encerrar Jogo: {{ game.name }}
-Voltar
-Informe o Stack Final de Cada Jogador
-{% for player in players %}
-{{ player.name }} 
-Fichas
-{% endfor %}
-Salvar Stacks e Auditar
-Auditoria do Jogo
-Total de Fichas que Entraram em Jogo: {{ total_chips_in_play }}
+{% extends 'layout.html' %}
 
-Soma dos Stacks Finais Informados: {{ total_final_chips }}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2>Encerrar Jogo: {{ game.name }}</h2>
+  <a href="{{ url_for('game_details', game_id=game.id) }}" class="btn btn-secondary">Voltar</a>
+</div>
 
-{% if total_final_chips == 0 %}
-Aguardando o preenchimento dos stacks finais para auditar.
-{% elif discrepancy == 0 %}
-Caixa Fechado!
-Discrepância de {{ discrepancy }} fichas. A contagem está correta!
+<div class="card bg-dark border-secondary mb-4">
+  <div class="card-header">
+    <h5>Informe o Stack Final de Cada Jogador</h5>
+  </div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('end_game', game_id=game.id) }}">
+      <ul class="list-group list-group-flush">
+        {% for player in players %}
+        <li class="list-group-item bg-dark text-light d-flex justify-content-between align-items-center">
+          <label for="stack_{{ player.id }}" class="form-label mb-0">{{ player.name }}</label>
+          <input type="number" class="form-control" style="width: 150px;" id="stack_{{ player.id }}" name="stack_{{ player.id }}" value="{{ player.stack if player.stack > 0 else '' }}" placeholder="Fichas" required>
+        </li>
+        {% endfor %}
+      </ul>
+      <div class="mt-3">
+        <button type="submit" class="btn btn-primary">Salvar Stacks e Auditar</button>
+      </div>
+    </form>
+  </div>
+</div>
 
-{% else %}
-Atenção: Erro no Caixa!
-Há uma diferença de {{ discrepancy }} fichas. Por favor, reconte os stacks de todos os jogadores.
+<div class="card bg-dark border-secondary mt-4">
+  <div class="card-header">
+    <h4>Auditoria do Jogo</h4>
+  </div>
+  <div class="card-body">
+    <p>
+      <strong>Total de Fichas que Entraram em Jogo:</strong>
+      <span class="badge bg-secondary fs-6">{{ total_chips_in_play }}</span>
+    </p>
+    <p>
+      <strong>Soma dos Stacks Finais Informados:</strong>
+      <span class="badge bg-secondary fs-6">{{ total_final_chips }}</span>
+    </p>
+    <hr class="border-light">
 
-{% endif %}
+    <!-- Lógica para mostrar o resultado da auditoria -->
+    {% if total_final_chips == 0 %}
+      <div class="alert alert-info" role="alert">
+        Aguardando o preenchimento dos stacks finais para auditar.
+      </div>
+    {% elif discrepancy == 0 %}
+      <div class="alert alert-success" role="alert">
+        <h4 class="alert-heading">Caixa Fechado!</h4>
+        <p>Discrepância de <strong>{{ discrepancy }}</strong> fichas. A contagem está correta!</p>
+      </div>
+    {% else %}
+      <div class="alert alert-danger" role="alert">
+        <h4 class="alert-heading">Atenção: Erro no Caixa!</h4>
+        <p>Há uma diferença de <strong>{{ discrepancy }}</strong> fichas. Por favor, reconte os stacks de todos os jogadores.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
 {% endblock %}
