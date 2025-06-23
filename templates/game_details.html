@@ -1,141 +1,19 @@
-{% extends 'layout.html' %}
-
-{% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h2 class="mb-0">{{ game.name }}</h2>
-  <div class="d-flex gap-2">
-    <a href="{{ url_for('end_game', game_id=game.id) }}" class="btn btn-secondary">Encerrar Jogo</a>
-    <form method="POST" action="{{ url_for('delete_game', game_id=game.id) }}" onsubmit="return confirm('Tem certeza que deseja apagar este jogo? Esta ação não pode ser desfeita.');" class="d-inline">
-      <button type="submit" class="btn btn-outline-danger">Apagar Jogo</button>
-    </form>
-  </div>
-</div>
-
-<!-- Seção do Timer -->
-<div class="card mb-4 text-center">
-    <div class="card-header">
-        Tempo de Jogo Restante
-    </div>
-    <div class="card-body">
-        <h1 id="timer-display" class="display-3 fw-bold">04:00:00</h1>
-        <div class="d-flex justify-content-center gap-2 mt-3">
-            <button id="play-pause-btn" class="btn btn-danger">Pausar</button>
-            <button id="reset-btn" class="btn btn-outline-secondary">Reiniciar</button>
-        </div>
-    </div>
-</div>
-
-<!-- Card para adicionar jogadores -->
-<div class="card mb-4">
-  <div class="card-body">
-    <h5 class="card-title">Adicionar Jogador</h5>
-    <form method="POST" action="{{ url_for('add_player', game_id=game.id) }}" class="d-flex gap-2">
-      <input type="text" class="form-control" name="player_name" placeholder="Nome do Jogador" required>
-      <button type="submit" class="btn btn-outline-secondary">Adicionar (Buy-in: {{ cash_value }})</button>
-    </form>
-  </div>
-</div>
-
-<!-- Lista de Jogadores -->
-<div class="list-group">
-  {% for player in players %}
-    <div class="list-group-item p-3">
-      <div class="d-flex justify-content-between align-items-center">
-        <div>
-          <h5 class="mb-1">{{ player.name }}</h5>
-          <small class="text-muted">
-            Total Investido: <strong>{{ player.buy_ins * cash_value }} fichas</strong>
-            {% if player.buy_ins > 1 %}
-              (1 Buy-in + {{ player.buy_ins - 1 }} Rebuys)
-            {% else %}
-              (1 Buy-in)
-            {% endif %}
-          </small>
-        </div>
-        <div class="d-flex gap-2">
-          <form method="POST" action="{{ url_for('rebuy', player_id=player.id) }}" class="d-inline">
-            <button type="submit" class="btn btn-danger">+ Rebuy ({{ cash_value }})</button>
-          </form>
-          <form method="POST" action="{{ url_for('delete_player', player_id=player.id) }}" class="d-inline">
-            <button type="submit" class="btn btn-outline-secondary btn-sm">X</button>
-          </form>
-        </div>
-      </div>
-    </div>
-  {% else %}
-    <div class="list-group-item">Nenhum jogador na mesa.</div>
-  {% endfor %}
-</div>
-
-<!-- Script do Timer -->
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const initialTime = 4 * 60 * 60; // 4 horas em segundos
-        let timeRemaining = initialTime;
-        let timerInterval;
-        let isRunning = false;
-
-        const timerDisplay = document.getElementById('timer-display');
-        const playPauseBtn = document.getElementById('play-pause-btn');
-        const resetBtn = document.getElementById('reset-btn');
-
-        function formatTime(seconds) {
-            const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
-            const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
-            const s = (seconds % 60).toString().padStart(2, '0');
-            return `${h}:${m}:${s}`;
-        }
-
-        function updateDisplay() {
-            timerDisplay.textContent = formatTime(timeRemaining);
-        }
-
-        function startTimer() {
-            if (isRunning) return;
-            isRunning = true;
-            playPauseBtn.textContent = 'Pausar';
-            playPauseBtn.classList.remove('btn-outline-danger');
-            playPauseBtn.classList.add('btn-danger');
-
-            timerInterval = setInterval(() => {
-                timeRemaining--;
-                updateDisplay();
-                if (timeRemaining <= 0) {
-                    clearInterval(timerInterval);
-                    timerDisplay.textContent = 'ACABOU!';
-                    isRunning = false;
-                    playPauseBtn.disabled = true;
-                }
-            }, 1000);
-        }
-
-        function pauseTimer() {
-            if (!isRunning) return;
-            isRunning = false;
-            playPauseBtn.textContent = 'Retomar';
-            playPauseBtn.classList.remove('btn-danger');
-            playPauseBtn.classList.add('btn-outline-danger');
-            clearInterval(timerInterval);
-        }
-
-        playPauseBtn.addEventListener('click', () => {
-            if (isRunning) {
-                pauseTimer();
-            } else {
-                startTimer();
-            }
-        });
-
-        resetBtn.addEventListener('click', () => {
-            pauseTimer();
-            timeRemaining = initialTime;
-            updateDisplay();
-            playPauseBtn.disabled = false;
-        });
-        
-        // Inicia o timer automaticamente ao carregar a página
-        startTimer();
-    });
-</script>
-
+{% extends 'layout.html' %} {% block content %}
+{{ game.name }}
+Encerrar Jogo
+Apagar Jogo
+Tempo de Jogo
+04:00:00
+Iniciar Reiniciar
+Adicionar Jogador
+Nome do Jogador
+ Adicionar (Buy-in: {{ cash_value }})
+{% for player in players %}
+{{ player.name }}
+Total Investido: {{ player.buy_ins * cash_value }} fichas {% if player.buy_ins > 1 %} (1 Buy-in + {{ player.buy_ins - 1 }} Rebuys) {% else %} (1 Buy-in) {% endif %}
++ Rebuy ({{ cash_value }})
+X
+{% else %}
+Nenhum jogador na mesa.
+{% endfor %}
 {% endblock %}
