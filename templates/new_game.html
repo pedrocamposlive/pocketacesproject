@@ -1,8 +1,21 @@
-{% extends 'layout.html' %} {% block content %}
-Criar Novo Jogo
-Nome do Jogo 
-Ex: Poker de Segunda
-Valor do Buy-in (em fichas) 
-Ex: 1000
-Salvar e Adicionar Jogadores Cancelar
+{% extends 'layout.html' %}
+
+{% block content %}
+<h2>Criar Novo Jogo</h2>
+<div class="card bg-dark border-secondary">
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('new_game') }}">
+      <div class="mb-3">
+        <label for="name" class="form-label">Nome do Jogo</label>
+        <input type="text" class="form-control" id="name" name="name" required placeholder="Ex: Poker de Segunda">
+      </div>
+      <div class="mb-3">
+        <label for="buy_in_value" class="form-label">Valor do Buy-in (em fichas)</label>
+        <input type="number" class="form-control" id="buy_in_value" name="buy_in_value" required placeholder="Ex: 1000">
+      </div>
+      <button type="submit" class="btn btn-primary">Salvar e Adicionar Jogadores</button>
+      <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancelar</a>
+    </form>
+  </div>
+</div>
 {% endblock %}
