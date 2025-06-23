@@ -1,0 +1,8 @@
+{% extends 'layout.html' %} {% block content %}
+Jogos em Andamento
+Criar Novo Jogo
+{% for game in games %} {{ game.name }} Buy-in: {{ game.buy_in_value }} fichas {{ game.players|length }} jogadores {% else %}
+Nenhum jogo foi criado ainda. Que tal começar um?
+
+{% endfor %}
+{% endblock %}
