@@ -2,11 +2,11 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h2>Encerrar Jogo: {{ game.name }}</h2>
+  <h2 class="mb-0">Encerrar Jogo: {{ game.name }}</h2>
   <a href="{{ url_for('game_details', game_id=game.id) }}" class="btn btn-secondary">Voltar</a>
 </div>
 
-<div class="card bg-dark border-secondary mb-4">
+<div class="card mb-4">
   <div class="card-header">
     <h5>Informe o Stack Final de Cada Jogador</h5>
   </div>
@@ -14,20 +14,50 @@
     <form method="POST" action="{{ url_for('end_game', game_id=game.id) }}">
       <ul class="list-group list-group-flush">
         {% for player in players %}
-        <li class="list-group-item bg-dark text-light d-flex justify-content-between align-items-center">
+        <li class="list-group-item d-flex justify-content-between align-items-center">
           <label for="stack_{{ player.id }}" class="form-label mb-0">{{ player.name }}</label>
-          <input type="number" class="form-control" style="width: 150px;" id="stack_{{ player.id }}" name="stack_{{ player.id }}" value="{{ player.stack if player.stack > 0 else '' }}" placeholder="Fichas" required>
+          <div class="d-flex align-items-center gap-3">
+            <!-- NOVO BOTÃO DE QR CODE -->
+            {% if player.payment_key %}
+              <button type="button" class="btn btn-outline-light btn-sm generate-qr-btn" 
+                      data-bs-toggle="modal" 
+                      data-bs-target="#qrModal{{ player.id }}"
+                      data-key="{{ player.payment_key }}">
+                Gerar QR Code
+              </button>
+            {% endif %}
+            <input type="number" class="form-control" style="width: 150px;" id="stack_{{ player.id }}" name="stack_{{ player.id }}" value="{{ player.stack if player.stack > 0 else '' }}" placeholder="Fichas" required>
+          </div>
         </li>
+
+        <!-- MODAL PARA EXIBIR O QR CODE -->
+        <div class="modal fade" id="qrModal{{ player.id }}" tabindex="-1" aria-labelledby="qrModalLabel{{ player.id }}" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-dark text-light">
+              <div class="modal-header">
+                <h5 class="modal-title" id="qrModalLabel{{ player.id }}">QR Code para {{ player.name }}</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body text-center p-4">
+                <div id="qrcode-container-{{ player.id }}" class="bg-white p-3 d-inline-block rounded">
+                  <!-- O QR Code será gerado aqui pelo JavaScript -->
+                </div>
+                <p class="mt-3">Chave: <br><strong>{{ player.payment_key }}</strong></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {% endfor %}
       </ul>
       <div class="mt-3">
-        <button type="submit" class="btn btn-primary">Salvar Stacks e Auditar</button>
+        <button type="submit" class="btn btn-danger">Salvar Stacks e Auditar</button>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card bg-dark border-secondary mt-4">
+<div class="card mt-4">
   <div class="card-header">
     <h4>Auditoria do Jogo</h4>
   </div>
@@ -40,9 +70,7 @@
       <strong>Soma dos Stacks Finais Informados:</strong>
       <span class="badge bg-secondary fs-6">{{ total_final_chips }}</span>
     </p>
-    <hr class="border-light">
-
-    <!-- Lógica para mostrar o resultado da auditoria -->
+    <hr>
     {% if total_final_chips == 0 %}
       <div class="alert alert-info" role="alert">
         Aguardando o preenchimento dos stacks finais para auditar.
@@ -60,5 +88,37 @@
     {% endif %}
   </div>
 </div>
+
+<!-- INCLUSÃO DA BIBLIOTECA DE QR CODE -->
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+<!-- SCRIPT PARA GERAR O QR CODE -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const qrButtons = document.querySelectorAll('.generate-qr-btn');
+
+    qrButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const key = this.dataset.key;
+            // Pega o ID do jogador a partir do ID do modal
+            const playerId = this.dataset.bsTarget.replace('#qrModal', '');
+            const qrContainer = document.getElementById(`qrcode-container-${playerId}`);
+
+            // Limpa qualquer QR code anterior para garantir que um novo seja gerado
+            qrContainer.innerHTML = '';
+
+            // Gera o novo QR Code
+            new QRCode(qrContainer, {
+                text: key,
+                width: 200,
+                height: 200,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        });
+    });
+});
+</script>
 
 {% endblock %}
