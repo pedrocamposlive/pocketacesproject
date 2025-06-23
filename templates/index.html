@@ -1,8 +1,29 @@
-{% extends 'layout.html' %} {% block content %}
-Jogos em Andamento
-Criar Novo Jogo
-{% for game in games %} {{ game.name }} Buy-in: {{ game.buy_in_value }} fichas {{ game.players|length }} jogadores {% else %}
-Nenhum jogo foi criado ainda. Que tal começar um?
+{% extends 'layout.html' %}
 
-{% endfor %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1>♣️ Pocket Aces Manager</h1>
+  <a href="{{ url_for('new_game') }}" class="btn btn-primary btn-lg">Criar Novo Jogo</a>
+</div>
+
+<div class="card bg-secondary text-light">
+    <div class="card-header">
+        <h4>Jogos em Andamento</h4>
+    </div>
+    <div class="list-group list-group-flush">
+      {% for game in games %}
+        <a href="{{ url_for('game_details', game_id=game.id) }}" class="list-group-item list-group-item-action bg-dark text-light d-flex justify-content-between align-items-center">
+          <span>
+            <strong>{{ game.name }}</strong>
+            <small class="d-block text-muted">Buy-in: {{ game.buy_in_value }} fichas</small>
+          </span>
+          <span class="badge bg-success rounded-pill">{{ game.players|length }} jogadores</span>
+        </a>
+      {% else %}
+        <div class="list-group-item bg-dark text-light">
+          <p class="mb-0">Nenhum jogo foi criado ainda. Que tal começar um?</p>
+        </div>
+      {% endfor %}
+    </div>
+</div>
 {% endblock %}
