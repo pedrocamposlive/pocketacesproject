@@ -3,11 +3,8 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h1 class="mb-0">♣️ Pocket Aces Manager</h1>
-  <div class="d-flex gap-2">
-      <!-- ALTERAÇÃO 2: Botão para a nova página de Caixa -->
-      <a href="{{ url_for('caixa') }}" class="btn btn-secondary">Caixa</a>
-      <a href="{{ url_for('new_game') }}" class="btn btn-danger">Criar Novo Jogo</a>
-  </div>
+  <!-- O botão "Caixa" foi removido daqui e movido para a tela de resumo final -->
+  <a href="{{ url_for('new_game') }}" class="btn btn-danger">Criar Novo Jogo</a>
 </div>
 
 <div class="card bg-secondary text-light">
