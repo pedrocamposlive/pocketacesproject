@@ -1,221 +1,148 @@
+# Importações necessárias
 import os
-from flask import Flask, render_template_string
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 
-app = Flask(__name__)
+# --- CONFIGURAÇÃO DE CAMINHOS ---
+basedir = os.path.abspath(os.path.dirname(__file__))
 
-# --- Dados da Mesa ---
-jogadores = {}  # não será usado nesse modo, mas mantido para compatibilidade
+# --- INICIALIZAÇÃO CORRETA DO APP ---
+app = Flask(__name__, template_folder=os.path.join(basedir, 'templates'))
 
-# --- Template com LocalStorage + PWA + Resumo Final ---
-template_index = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>POKER & RESENHA</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+# --- Configuração do Banco de Dados e Chave Secreta ---
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'poker.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = 'uma-chave-secreta-bem-dificil'
 
-    <link rel="manifest" href="/static/manifest.json">
-    <link rel="icon" href="/static/pwa-icon-192-poker.png" type="image/png">
-    <meta name="theme-color" content="#001133">
+# Inicialização das extensões
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/static/sw.js')
-          .then(() => console.log("✅ Service Worker registrado"))
-          .catch(err => console.error("Erro ao registrar SW:", err));
-      }
-    </script>
+# --- VALOR FIXO PARA O CASH GAME ---
+CASH_GAME_VALUE = 50
 
-    <style>
-        body { background-color: #001; color: #fff; font-family: Arial, sans-serif; margin: 0; padding: 0;
-               min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
-        .container {
-            width: 100%; max-width: 414px; min-height: 736px;
-            margin: 0 auto; padding: 20px; box-sizing: border-box;
-            display: flex; flex-direction: column; align-items: center;
-        }
-        input, button { padding: 10px; margin: 5px; width: 90%; max-width: 300px;
-                        border-radius: 5px; border: 1px solid #444; }
-        ul { list-style: none; padding: 0; width: 100%; }
-        li { margin: 15px 0; font-size: 18px; background: #111; padding: 15px;
-             border-radius: 10px; text-align: center; }
-        a, button { color: #fff; background-color: #444; border: none; border-radius: 5px;
-                    cursor: pointer; padding: 10px 20px; text-decoration: none;
-                    display: inline-block; margin: 5px; }
-        a:hover, button:hover { background-color: #666; }
-        form.inline { display: flex; flex-direction: column; align-items: center; width: 100%; }
-        #timer { font-size: 80px; text-align: center; margin: 20px auto; color: #0f0; }
-        #timer-controls { text-align: center; margin-bottom: 30px; width: 100%; }
-        h1, h2 { text-align: center; width: 100%; }
-        .actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; width: 100%; }
-        #resumoFinal { display: none; margin-top: 30px; width: 100%; text-align: center; }
-        #resumoFinal table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        #resumoFinal th, #resumoFinal td { border: 1px solid #888; padding: 8px; text-align: center; }
-        #resumoFinal th { background-color: #222; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>POKER & RESENHA</h1>
-        <div id="timer">04:00:00</div>
-        <div id="timer-controls">
-            <button onclick="startTimer()">Iniciar</button>
-            <button onclick="toggleTimer()">Pausar/Retomar</button>
-        </div>
-        <h2>Adicionar Jogador</h2>
-        <form id="addForm" style="width: 100%; text-align: center;">
-            <input type="text" id="nomeInput" required placeholder="Nome do Jogador">
-            <button type="submit">Adicionar</button>
-        </form>
-        <h2>Jogadores</h2>
-        <ul id="jogadoresList"></ul>
-        <br>
-        <button onclick="mostrarResumo()" style="width: 80%;">📊 Finalizar Mesa</button>
-        <button onclick="limparEstado()" style="width: 80%;">🔄 Resetar Mesa</button>
-        <div id="resumoFinal"></div>
-    </div>
+# --- Modelos do Banco de Dados ---
 
-    <script>
-        var totalSeconds = 4 * 60 * 60;
-        var paused = true;
-        var started = false;
+class Game(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    buy_in_value = db.Column(db.Integer, nullable=False, default=CASH_GAME_VALUE)
+    players = db.relationship('Player', backref='game', lazy=True, cascade="all, delete-orphan")
 
-        function formatTime(seconds) {
-            var h = String(Math.floor(seconds / 3600)).padStart(2, '0');
-            var m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
-            var s = String(seconds % 60).padStart(2, '0');
-            return h + ":" + m + ":" + s;
-        }
+    def __repr__(self):
+        return f'<Game {self.name}>'
 
-        function updateTimer() {
-            if (!paused && totalSeconds > 0) {
-                totalSeconds--;
-                document.getElementById("timer").textContent = formatTime(totalSeconds);
-            }
-        }
+class Player(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    buy_ins = db.Column(db.Integer, default=1, nullable=False)
+    stack = db.Column(db.Integer, default=0, nullable=False)
+    game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
+    # --- NOVO CAMPO PARA A CHAVE DO QR CODE ---
+    payment_key = db.Column(db.String(200), nullable=True) # Permite que o campo seja nulo
 
-        function startTimer() {
-            if (!started) {
-                started = true;
-                paused = false;
-            }
-        }
+    def __repr__(self):
+        return f'<Player {self.name}>'
 
-        function toggleTimer() {
-            if (started) {
-                paused = !paused;
-            }
-        }
+# --- Rotas da Aplicação ---
 
-        setInterval(updateTimer, 1000);
-
-        // ========== LOCALSTORAGE ==========
-        let jogadores = {};
-
-        function salvarEstado() {
-            localStorage.setItem("jogadores", JSON.stringify(jogadores));
-        }
-
-        function carregarEstado() {
-            const salvo = localStorage.getItem("jogadores");
-            if (salvo) {
-                jogadores = JSON.parse(salvo);
-                renderJogadores();
-            }
-        }
-
-        function renderJogadores() {
-            const ul = document.getElementById("jogadoresList");
-            ul.innerHTML = "";
-            for (const nome in jogadores) {
-                const j = jogadores[nome];
-                const li = document.createElement("li");
-                li.innerHTML = `
-                    <strong>${j.nome}</strong><br>
-                    Buy-ins: ${j.buy_ins} | Rebuys: ${j.rebuys}<br>
-                    <div class="actions">
-                        <button onclick="mudarRebuy('${nome}', 1)">+ Rebuy</button>
-                        <button onclick="mudarRebuy('${nome}', -1)">- Rebuy</button>
-                    </div>
-                    <form onsubmit="return registrarFichas('${nome}', this)">
-                        <input type="number" name="fichas" min="0" placeholder="Fichas finais">
-                        <button type="submit">Registrar</button>
-                    </form>
-                `;
-                ul.appendChild(li);
-            }
-        }
-
-        function mudarRebuy(nome, delta) {
-            if (jogadores[nome]) {
-                jogadores[nome].rebuys += delta;
-                if (jogadores[nome].rebuys < 0) jogadores[nome].rebuys = 0;
-                salvarEstado();
-                renderJogadores();
-            }
-        }
-
-        function registrarFichas(nome, form) {
-            const fichas = parseInt(form.fichas.value);
-            if (!isNaN(fichas)) {
-                jogadores[nome].fichas_finais = fichas;
-                salvarEstado();
-                renderJogadores();
-            }
-            return false;
-        }
-
-        function mostrarResumo() {
-            const div = document.getElementById("resumoFinal");
-            let html = `<h2>Resumo Final</h2><table><tr><th>Nome</th><th>Buy-ins</th><th>Rebuys</th><th>Total</th><th>Final</th><th>Saldo</th></tr>`;
-            for (const nome in jogadores) {
-                const j = jogadores[nome];
-                const total = (j.buy_ins + j.rebuys) * 50;
-                const saldo = j.fichas_finais - total;
-                html += `<tr><td>${j.nome}</td><td>${j.buy_ins}</td><td>${j.rebuys}</td><td>${total}</td><td>${j.fichas_finais}</td><td>${saldo}</td></tr>`;
-            }
-            html += `</table>`;
-            div.innerHTML = html;
-            div.style.display = "block";
-        }
-
-        function limparEstado() {
-            if (confirm("Tem certeza que deseja resetar a mesa?")) {
-                localStorage.removeItem("jogadores");
-                jogadores = {};
-                renderJogadores();
-                document.getElementById("resumoFinal").style.display = "none";
-            }
-        }
-
-        document.getElementById("addForm").addEventListener("submit", function (e) {
-            e.preventDefault();
-            const nome = document.getElementById("nomeInput").value.trim();
-            if (nome && !jogadores[nome]) {
-                jogadores[nome] = {
-                    nome: nome,
-                    buy_ins: 1,
-                    rebuys: 0,
-                    fichas_finais: 0
-                };
-                document.getElementById("nomeInput").value = "";
-                salvarEstado();
-                renderJogadores();
-            }
-        });
-
-        carregarEstado();
-    </script>
-</body>
-</html>
-"""
-
-# --- Rota Principal ---
-@app.route("/")
+@app.route('/')
 def index():
-    return render_template_string(template_index)
+    games = Game.query.order_by(Game.id.desc()).all()
+    return render_template('index.html', games=games)
 
-# --- Execução Render ---
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+@app.route('/game/new', methods=['GET', 'POST'])
+def new_game():
+    if request.method == 'POST':
+        name = request.form['name']
+        if not name:
+            flash('O nome do jogo é obrigatório!', 'danger')
+            return redirect(url_for('new_game'))
+        new_game = Game(name=name, buy_in_value=CASH_GAME_VALUE)
+        db.session.add(new_game)
+        db.session.commit()
+        flash('Jogo criado com sucesso!', 'success')
+        return redirect(url_for('game_details', game_id=new_game.id))
+    return render_template('new_game.html')
+
+@app.route('/game/<int:game_id>')
+def game_details(game_id):
+    game = Game.query.get_or_404(game_id)
+    players = Player.query.filter_by(game_id=game.id).all()
+    return render_template('game_details.html', game=game, players=players, cash_value=CASH_GAME_VALUE)
+
+@app.route('/game/<int:game_id>/add_player', methods=['POST'])
+def add_player(game_id):
+    game = Game.query.get_or_404(game_id)
+    player_name = request.form['player_name']
+    if player_name:
+        new_player = Player(name=player_name, game_id=game.id, buy_ins=1)
+        db.session.add(new_player)
+        db.session.commit()
+        flash(f'Jogador {player_name} entrou na mesa com {CASH_GAME_VALUE} fichas!', 'success')
+    return redirect(url_for('game_details', game_id=game.id))
+
+@app.route('/player/<int:player_id>/rebuy', methods=['POST'])
+def rebuy(player_id):
+    player = Player.query.get_or_404(player_id)
+    player.buy_ins += 1
+    db.session.commit()
+    flash(f'Rebuy de {CASH_GAME_VALUE} fichas adicionado para {player.name}!', 'info')
+    return redirect(url_for('game_details', game_id=player.game_id))
+
+# --- NOVA ROTA PARA SALVAR A CHAVE ---
+@app.route('/player/<int:player_id>/set_key', methods=['POST'])
+def set_key(player_id):
+    player = Player.query.get_or_404(player_id)
+    key = request.form.get('payment_key')
+    player.payment_key = key
+    db.session.commit()
+    flash(f'Chave de pagamento para {player.name} foi salva!', 'success')
+    return redirect(url_for('game_details', game_id=player.game_id))
+
+# --- Rotas de Deleção e Encerramento (sem alterações) ---
+
+@app.route('/player/<int:player_id>/delete', methods=['POST'])
+def delete_player(player_id):
+    player = Player.query.get_or_404(player_id)
+    game_id = player.game_id
+    db.session.delete(player)
+    db.session.commit()
+    flash('Jogador removido com sucesso.', 'warning')
+    return redirect(url_for('game_details', game_id=game_id))
+
+@app.route('/game/<int:game_id>/delete', methods=['POST'])
+def delete_game(game_id):
+    game = Game.query.get_or_404(game_id)
+    db.session.delete(game)
+    db.session.commit()
+    flash('Jogo deletado com sucesso!', 'danger')
+    return redirect(url_for('index'))
+
+@app.route('/game/<int:game_id>/end', methods=['GET', 'POST'])
+def end_game(game_id):
+    game = Game.query.get_or_404(game_id)
+    players = Player.query.filter_by(game_id=game.id).all()
+
+    if request.method == 'POST':
+        for player in players:
+            player.stack = int(request.form.get(f'stack_{player.id}', 0))
+        db.session.commit()
+        flash('Stacks finais salvos com sucesso!', 'success')
+        players = Player.query.filter_by(game_id=game.id).all()
+
+    total_chips_in_play = sum(p.buy_ins for p in players) * game.buy_in_value
+    total_final_chips = sum(p.stack for p in players)
+    discrepancy = total_final_chips - total_chips_in_play
+    
+    return render_template('end_game.html', 
+                           game=game, 
+                           players=players,
+                           total_chips_in_play=total_chips_in_play,
+                           total_final_chips=total_final_chips,
+                           discrepancy=discrepancy)
+
+# Ponto de entrada para execução local
+if __name__ == '__main__':
+    app.run(debug=True)
