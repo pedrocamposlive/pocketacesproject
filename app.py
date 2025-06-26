@@ -107,42 +107,54 @@ def delete_game(game_id):
     return redirect(url_for('index'))
 
 
-# --- ROTA DE ENCERRAMENTO (ATUALIZADA) ---
-
+# --- ROTA DE ENCERRAMENTO COM LÓGICA REFEITA ---
 @app.route('/game/<int:game_id>/end', methods=['GET', 'POST'])
 def end_game(game_id):
     game = Game.query.get_or_404(game_id)
-    players = Player.query.filter_by(game_id=game.id).all()
 
+    # Se o formulário for enviado, atualiza os stacks no banco de dados
     if request.method == 'POST':
-        for player in players:
-            player.stack = int(request.form.get(f'stack_{player.id}', 0))
+        players_to_update = Player.query.filter_by(game_id=game.id).all()
+        for player in players_to_update:
+            stack_value = request.form.get(f'stack_{player.id}')
+            try:
+                # Salva o valor do input. Se estiver vazio, salva como 0.
+                player.stack = int(stack_value) if stack_value else 0
+            except (ValueError, TypeError):
+                # Em caso de erro (ex: texto no input), mantém o stack atual ou 0
+                player.stack = player.stack or 0
+        
         db.session.commit()
-        flash('Stacks finais salvos com sucesso!', 'success')
-        players = Player.query.filter_by(game_id=game.id).all() # Recarrega para pegar os novos stacks
+        flash('Saldos atualizados com sucesso!', 'success')
+        # Redireciona para a mesma página para mostrar os resultados atualizados
+        return redirect(url_for('end_game', game_id=game.id))
 
-    # --- NOVA LÓGICA DE CÁLCULO DETALHADO ---
+    # Em uma requisição GET (primeira visita ou após o redirect), calcula e exibe os resultados
+    players = Player.query.filter_by(game_id=game.id).all()
     player_results = []
+    
     for player in players:
         total_invested = player.buy_ins * game.buy_in_value
         saldo = player.stack - total_invested
         player_results.append({
-            'player': player,
-            'buy_ins': 1, # Todo mundo tem 1 buy-in
-            'rebuys': player.buy_ins - 1,
+            'player_id': player.id,
+            'name': player.name,
+            'payment_key': player.payment_key,
+            'buy_ins_count': 1,
+            'rebuys_count': player.buy_ins - 1,
             'total_invested': total_invested,
             'final_stack': player.stack,
             'saldo': saldo
         })
     
-    # Auditoria geral continua a mesma
+    # Cálculos gerais de auditoria
     total_chips_in_play = sum(p.buy_ins for p in players) * game.buy_in_value
     total_final_chips = sum(p.stack for p in players)
     discrepancy = total_final_chips - total_chips_in_play
     
     return render_template('end_game.html', 
                            game=game,
-                           results=player_results, # Enviamos a nova lista detalhada
+                           results=player_results,
                            discrepancy=discrepancy)
 
 # Ponto de entrada para execução local
