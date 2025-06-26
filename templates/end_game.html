@@ -3,7 +3,10 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2 class="mb-0">Resumo Final: {{ game.name }}</h2>
-  <a href="{{ url_for('game_details', game_id=game.id) }}" class="btn btn-secondary">Voltar ao Jogo</a>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('caixa') }}" class="btn btn-secondary">Consultar Chave (Caixa)</a>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Voltar para Início</a>
+  </div>
 </div>
 
 <div class="card">
@@ -41,20 +44,21 @@
                                 {{ result.saldo }}
                             </td>
                             <td>
-                                <!-- Botão de QR Code aparece se o saldo for negativo e tiver chave -->
-                                {% if result.saldo < 0 and result.payment_key %}
-                                <button type="button" class="btn btn-danger btn-sm generate-qr-btn"
+                                <!-- ############ A CORREÇÃO ESTÁ AQUI ############ -->
+                                <!-- A condição agora verifica APENAS se a chave de pagamento existe. -->
+                                {% if result.payment_key %}
+                                <button type="button" class="btn btn-outline-light btn-sm generate-qr-btn"
                                         data-bs-toggle="modal"
                                         data-bs-target="#qrModal{{ result.player_id }}"
-                                        data-key="{{ result.payment_key }}"
-                                        data-amount="{{ result.saldo|abs }}">
+                                        data-key="{{ result.payment_key }}">
                                     QR Code
                                 </button>
                                 {% endif %}
+                                <!-- ############################################## -->
                             </td>
                         </tr>
                         
-                        <!-- Modal do QR Code (dentro do loop para ser único) -->
+                        <!-- Modal do QR Code -->
                         <div class="modal fade" id="qrModal{{ result.player_id }}" tabindex="-1" aria-hidden="true">
                             <div class="modal-dialog modal-dialog-centered">
                                 <div class="modal-content bg-dark text-light">
@@ -65,7 +69,9 @@
                                     <div class="modal-body text-center p-4">
                                         <div id="qrcode-container-{{ result.player_id }}" class="bg-white p-3 d-inline-block rounded"></div>
                                         <p class="mt-3">Chave: <strong>{{ result.payment_key }}</strong></p>
-                                        <p class="mt-3 text-danger fw-bold">Valor a pagar: {{ result.saldo|abs }} Fichas</p>
+                                        <p class="mt-3 fw-bold {% if result.saldo > 0 %}text-success{% elif result.saldo < 0 %}text-danger{% else %}text-white-50{% endif %}">
+                                            Resultado: {{ result.saldo }} Fichas
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -95,8 +101,6 @@ document.addEventListener('DOMContentLoaded', function() {
     qrButtons.forEach(button => {
         button.addEventListener('click', function() {
             const key = this.dataset.key;
-            // Opcional: Adicionar o valor ao QR Code se for um link de pagamento dinâmico
-            // const amount = this.dataset.amount;
             const playerId = this.dataset.bsTarget.replace('#qrModal', '');
             const qrContainer = document.getElementById(`qrcode-container-${playerId}`);
             qrContainer.innerHTML = ''; // Limpa o anterior
