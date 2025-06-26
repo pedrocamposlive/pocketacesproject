@@ -23,15 +23,11 @@ migrate = Migrate(app, db)
 CASH_GAME_VALUE = 50
 
 # --- Modelos do Banco de Dados ---
-
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     buy_in_value = db.Column(db.Integer, nullable=False, default=CASH_GAME_VALUE)
     players = db.relationship('Player', backref='game', lazy=True, cascade="all, delete-orphan")
-
-    def __repr__(self):
-        return f'<Game {self.name}>'
 
 class Player(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -39,14 +35,9 @@ class Player(db.Model):
     buy_ins = db.Column(db.Integer, default=1, nullable=False)
     stack = db.Column(db.Integer, default=0, nullable=False)
     game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
-    # --- NOVO CAMPO PARA A CHAVE DO QR CODE ---
-    payment_key = db.Column(db.String(200), nullable=True) # Permite que o campo seja nulo
+    payment_key = db.Column(db.String(200), nullable=True)
 
-    def __repr__(self):
-        return f'<Player {self.name}>'
-
-# --- Rotas da Aplicação ---
-
+# --- Rotas (as outras não mudam) ---
 @app.route('/')
 def index():
     games = Game.query.order_by(Game.id.desc()).all()
@@ -56,9 +47,7 @@ def index():
 def new_game():
     if request.method == 'POST':
         name = request.form['name']
-        if not name:
-            flash('O nome do jogo é obrigatório!', 'danger')
-            return redirect(url_for('new_game'))
+        if not name: flash('O nome do jogo é obrigatório!', 'danger'); return redirect(url_for('new_game'))
         new_game = Game(name=name, buy_in_value=CASH_GAME_VALUE)
         db.session.add(new_game)
         db.session.commit()
@@ -91,7 +80,6 @@ def rebuy(player_id):
     flash(f'Rebuy de {CASH_GAME_VALUE} fichas adicionado para {player.name}!', 'info')
     return redirect(url_for('game_details', game_id=player.game_id))
 
-# --- NOVA ROTA PARA SALVAR A CHAVE ---
 @app.route('/player/<int:player_id>/set_key', methods=['POST'])
 def set_key(player_id):
     player = Player.query.get_or_404(player_id)
@@ -100,8 +88,6 @@ def set_key(player_id):
     db.session.commit()
     flash(f'Chave de pagamento para {player.name} foi salva!', 'success')
     return redirect(url_for('game_details', game_id=player.game_id))
-
-# --- Rotas de Deleção e Encerramento (sem alterações) ---
 
 @app.route('/player/<int:player_id>/delete', methods=['POST'])
 def delete_player(player_id):
@@ -120,6 +106,9 @@ def delete_game(game_id):
     flash('Jogo deletado com sucesso!', 'danger')
     return redirect(url_for('index'))
 
+
+# --- ROTA DE ENCERRAMENTO (ATUALIZADA) ---
+
 @app.route('/game/<int:game_id>/end', methods=['GET', 'POST'])
 def end_game(game_id):
     game = Game.query.get_or_404(game_id)
@@ -130,17 +119,30 @@ def end_game(game_id):
             player.stack = int(request.form.get(f'stack_{player.id}', 0))
         db.session.commit()
         flash('Stacks finais salvos com sucesso!', 'success')
-        players = Player.query.filter_by(game_id=game.id).all()
+        players = Player.query.filter_by(game_id=game.id).all() # Recarrega para pegar os novos stacks
 
+    # --- NOVA LÓGICA DE CÁLCULO DETALHADO ---
+    player_results = []
+    for player in players:
+        total_invested = player.buy_ins * game.buy_in_value
+        saldo = player.stack - total_invested
+        player_results.append({
+            'player': player,
+            'buy_ins': 1, # Todo mundo tem 1 buy-in
+            'rebuys': player.buy_ins - 1,
+            'total_invested': total_invested,
+            'final_stack': player.stack,
+            'saldo': saldo
+        })
+    
+    # Auditoria geral continua a mesma
     total_chips_in_play = sum(p.buy_ins for p in players) * game.buy_in_value
     total_final_chips = sum(p.stack for p in players)
     discrepancy = total_final_chips - total_chips_in_play
     
     return render_template('end_game.html', 
-                           game=game, 
-                           players=players,
-                           total_chips_in_play=total_chips_in_play,
-                           total_final_chips=total_final_chips,
+                           game=game,
+                           results=player_results, # Enviamos a nova lista detalhada
                            discrepancy=discrepancy)
 
 # Ponto de entrada para execução local
