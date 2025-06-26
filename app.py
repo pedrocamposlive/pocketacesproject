@@ -3,6 +3,7 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from sqlalchemy import func
 
 # --- CONFIGURAÇÃO DE CAMINHOS ---
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -37,11 +38,28 @@ class Player(db.Model):
     game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
     payment_key = db.Column(db.String(200), nullable=True)
 
-# --- Rotas (as outras não mudam) ---
+# --- Rotas ---
 @app.route('/')
 def index():
     games = Game.query.order_by(Game.id.desc()).all()
     return render_template('index.html', games=games)
+
+# --- ALTERAÇÃO 2: NOVA ROTA PARA O CAIXA ---
+@app.route('/caixa', methods=['GET', 'POST'])
+def caixa():
+    found_player = None
+    search_name = ""
+    if request.method == 'POST':
+        search_name = request.form.get('player_name')
+        if search_name:
+            # Procura pelo jogador, ignorando maiúsculas/minúsculas
+            # Pega o primeiro jogador encontrado que tenha uma chave de pagamento
+            found_player = Player.query.filter(func.lower(Player.name) == func.lower(search_name), Player.payment_key.isnot(None)).first()
+            if not found_player:
+                flash(f'Nenhum jogador chamado "{search_name}" com chave salva foi encontrado.', 'warning')
+    
+    return render_template('caixa.html', found_player=found_player, search_name=search_name)
+
 
 @app.route('/game/new', methods=['GET', 'POST'])
 def new_game():
@@ -106,33 +124,23 @@ def delete_game(game_id):
     flash('Jogo deletado com sucesso!', 'danger')
     return redirect(url_for('index'))
 
-
-# --- ROTA DE ENCERRAMENTO COM LÓGICA REFEITA ---
 @app.route('/game/<int:game_id>/end', methods=['GET', 'POST'])
 def end_game(game_id):
     game = Game.query.get_or_404(game_id)
-
-    # Se o formulário for enviado, atualiza os stacks no banco de dados
     if request.method == 'POST':
         players_to_update = Player.query.filter_by(game_id=game.id).all()
         for player in players_to_update:
             stack_value = request.form.get(f'stack_{player.id}')
             try:
-                # Salva o valor do input. Se estiver vazio, salva como 0.
                 player.stack = int(stack_value) if stack_value else 0
             except (ValueError, TypeError):
-                # Em caso de erro (ex: texto no input), mantém o stack atual ou 0
                 player.stack = player.stack or 0
-        
         db.session.commit()
         flash('Saldos atualizados com sucesso!', 'success')
-        # Redireciona para a mesma página para mostrar os resultados atualizados
         return redirect(url_for('end_game', game_id=game.id))
 
-    # Em uma requisição GET (primeira visita ou após o redirect), calcula e exibe os resultados
     players = Player.query.filter_by(game_id=game.id).all()
     player_results = []
-    
     for player in players:
         total_invested = player.buy_ins * game.buy_in_value
         saldo = player.stack - total_invested
@@ -146,17 +154,13 @@ def end_game(game_id):
             'final_stack': player.stack,
             'saldo': saldo
         })
-    
-    # Cálculos gerais de auditoria
     total_chips_in_play = sum(p.buy_ins for p in players) * game.buy_in_value
     total_final_chips = sum(p.stack for p in players)
     discrepancy = total_final_chips - total_chips_in_play
-    
     return render_template('end_game.html', 
                            game=game,
                            results=player_results,
                            discrepancy=discrepancy)
 
-# Ponto de entrada para execução local
 if __name__ == '__main__':
     app.run(debug=True)
