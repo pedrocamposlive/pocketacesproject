@@ -59,7 +59,7 @@
         <!-- Ações do Jogador (centralizado em telas pequenas) -->
         <div class="d-flex gap-2 justify-content-center">
             <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#keyModal{{ player.id }}">
-                🔑 Chave
+                Chave-PIX
             </button>
             <form method="POST" action="{{ url_for('rebuy', player_id=player.id) }}" class="d-inline">
                 <button type="submit" class="btn btn-danger">+ Rebuy ({{ cash_value }})</button>
