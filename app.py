@@ -4,8 +4,8 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import func
-# A forma correta de importar a ferramenta
-from brcode import brcode
+# --- MUDANÇA 1: Importando a nova e mais confiável biblioteca ---
+from pixqrcodegen import Payload
 
 # --- CONFIGURAÇÃO E INICIALIZAÇÃO (sem alterações) ---
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -32,7 +32,7 @@ class Player(db.Model):
     game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
     payment_key = db.Column(db.String(200), nullable=True)
 
-# --- ROTAS (com a rota generate_pix corrigida) ---
+# --- ROTAS (com a rota generate_pix refeita) ---
 
 @app.route('/generate_pix', methods=['POST'])
 def generate_pix():
@@ -43,22 +43,20 @@ def generate_pix():
     pix_key = data.get('key')
     name = data.get('name', 'Pagamento Poker')
     
-    sanitized_name = ''.join(e for e in name if e.isalnum() or e.isspace())[:25].strip() or 'JOGADOR'
-    txid = "POKER" + ''.join(c for c in name if c.isalnum())[:15] + str(Game.query.count())
-
     try:
-        # --- CORREÇÃO DEFINITIVA: Chamando a ferramenta 'brcode' com o nome correto (minúsculo) ---
-        payment = brcode(
+        # --- MUDANÇA 2: Usando a nova biblioteca para gerar o payload ---
+        payload = Payload(
+            name=name,
+            city='SAO PAULO', # Cidade do recebedor (2 letras maiúsculas)
             key=pix_key,
-            name=sanitized_name,
-            city='SAO PAULO',
-            txid=txid
+            # Não definimos o valor, gerando um QR Code estático
         )
-        payload = payment.generate()
-        return jsonify({'payload': payload})
+        # O método .gerar_string() cria o payload BR Code completo e válido
+        br_code_payload = payload.gerar_string()
+        
+        return jsonify({'payload': br_code_payload})
     except Exception as e:
-        # Adicionei um "v3" para termos certeza que o código novo está rodando
-        return jsonify({'error': f'Erro v3 na biblioteca PIX: {str(e)}'}), 500
+        return jsonify({'error': f'Erro ao gerar código PIX: {str(e)}'}), 500
 
 # Demais rotas permanecem as mesmas...
 @app.route('/test_pix')
