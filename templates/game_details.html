@@ -1,22 +1,16 @@
 {% extends 'layout.html' %}
-
 {% block content %}
-<!-- O cabeçalho agora empilha os botões em telas pequenas -->
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 gap-2">
   <h2 class="mb-0 text-center text-md-start">{{ game.name }}</h2>
   <div class="d-flex gap-2">
     <a href="{{ url_for('end_game', game_id=game.id) }}" class="btn btn-secondary">Encerrar Jogo</a>
-    <form method="POST" action="{{ url_for('delete_game', game_id=game.id) }}" onsubmit="return confirm('Tem certeza que deseja apagar este jogo? Esta ação não pode ser desfeita.');" class="d-inline">
+    <form method="POST" action="{{ url_for('delete_game', game_id=game.id) }}" onsubmit="return confirm('Tem certeza?');" class="d-inline">
       <button type="submit" class="btn btn-outline-danger">Apagar Jogo</button>
     </form>
   </div>
 </div>
-
-<!-- Seção do Timer -->
 <div class="card mb-4 text-center">
-    <div class="card-header">
-        Tempo de Jogo
-    </div>
+    <div class="card-header">Tempo de Jogo</div>
     <div class="card-body">
         <h1 id="timer-display" class="display-3 fw-bold">04:00:00</h1>
         <div class="d-flex justify-content-center gap-2 mt-3">
@@ -25,8 +19,6 @@
         </div>
     </div>
 </div>
-
-<!-- Card para adicionar jogadores -->
 <div class="card mb-4">
   <div class="card-body">
     <h5 class="card-title">Adicionar Jogador</h5>
@@ -36,50 +28,42 @@
     </form>
   </div>
 </div>
-
-<!-- Lista de Jogadores -->
 <div class="list-group">
   {% for player in players %}
     <div class="list-group-item p-3">
-      <!-- MUDANÇA RESPONSIVA: Os elementos agora se empilham em telas 'sm' (vertical) e ficam lado a lado em telas 'md' (horizontal/tablet) e maiores -->
       <div class="d-block d-md-flex justify-content-md-between align-items-md-center">
-        <!-- Informações do Jogador (ocupa a largura toda em telas pequenas) -->
         <div class="mb-3 mb-md-0 text-center text-md-start">
           <h5 class="mb-1">{{ player.name }}</h5>
-          <small class="text-muted">
-            Total Investido: <strong>{{ player.buy_ins * cash_value }} fichas</strong>
-            {% if player.buy_ins > 1 %}
-              (1 Buy-in + {{ player.buy_ins - 1 }} Rebuys)
-            {% else %}
-              (1 Buy-in)
-            {% endif %}
+          <small class="text-muted">Total Investido: <strong>{{ player.buy_ins * cash_value }} fichas</strong>
+            {% if player.buy_ins > 1 %}(1 Buy-in + {{ player.buy_ins - 1 }} Rebuys){% else %}(1 Buy-in){% endif %}
           </small>
         </div>
-        
-        <!-- Ações do Jogador (centralizado em telas pequenas) -->
         <div class="d-flex gap-2 justify-content-center">
-            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#keyModal{{ player.id }}">
-                Chave-PIX
-            </button>
-            <form method="POST" action="{{ url_for('rebuy', player_id=player.id) }}" class="d-inline">
-                <button type="submit" class="btn btn-danger">+ Rebuy ({{ cash_value }})</button>
-            </form>
-            <form method="POST" action="{{ url_for('delete_player', player_id=player.id) }}" class="d-inline">
-                <button type="submit" class="btn btn-outline-secondary btn-sm">X</button>
-            </form>
+            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#keyModal{{ player.id }}">🔑 Chave</button>
+            <form method="POST" action="{{ url_for('rebuy', player_id=player.id) }}" class="d-inline"><button type="submit" class="btn btn-danger">+ Rebuy ({{ cash_value }})</button></form>
+            <form method="POST" action="{{ url_for('delete_player', player_id=player.id) }}" class="d-inline"><button type="submit" class="btn btn-outline-secondary btn-sm">X</button></form>
         </div>
       </div>
     </div>
-
-    <!-- Modal para Inserir a Chave (sem alteração de layout) -->
     <div class="modal fade" id="keyModal{{ player.id }}" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-content bg-dark">
           <div class="modal-header"><h5 class="modal-title">Definir Chave para {{ player.name }}</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
           <form method="POST" action="{{ url_for('set_key', player_id=player.id) }}">
               <div class="modal-body">
-                <p class="text-muted">Insira a chave Pix que será usada para gerar o QR Code.</p>
-                <input type="text" class="form-control" name="payment_key" placeholder="Insira a chave aqui" value="{{ player.payment_key or '' }}">
+                <div class="mb-3">
+                    <label class="form-label">Tipo de Chave</label>
+                    <select name="payment_key_type" class="form-select">
+                        <option value="email" {% if player.payment_key_type == 'email' %}selected{% endif %}>E-mail</option>
+                        <option value="cpf" {% if player.payment_key_type == 'cpf' %}selected{% endif %}>CPF</option>
+                        <option value="phone" {% if player.payment_key_type == 'phone' %}selected{% endif %}>Telefone</option>
+                        <option value="random" {% if player.payment_key_type == 'random' %}selected{% endif %}>Chave Aleatória</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Chave PIX</label>
+                    <input type="text" class="form-control" name="payment_key" placeholder="Insira a chave aqui" value="{{ player.payment_key or '' }}">
+                </div>
               </div>
               <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-danger">Salvar Chave</button></div>
           </form>
@@ -88,7 +72,6 @@
     </div>
   {% endfor %}
 </div>
-
 <!-- Script do Timer (sem alteração) -->
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -99,7 +82,7 @@
         function startTimer(){if(isRunning)return;isRunning=!0;playPauseBtn.textContent='Pausar';playPauseBtn.classList.remove('btn-outline-danger');playPauseBtn.classList.add('btn-danger');timerInterval=setInterval(()=>{timeRemaining--;updateDisplay();if(timeRemaining<=0){clearInterval(timerInterval);timerDisplay.textContent='ACABOU!';isRunning=!1;playPauseBtn.disabled=!0}},1e3)}
         function pauseTimer(){if(!isRunning)return;isRunning=!1;playPauseBtn.textContent='Retomar';playPauseBtn.classList.remove('btn-danger');playPauseBtn.classList.add('btn-outline-danger');clearInterval(timerInterval)}
         playPauseBtn.addEventListener('click',()=>{if(timeRemaining<=0)return;isRunning?pauseTimer():startTimer()});
-        resetBtn.addEventListener('click',()=>{if(!confirm('Tem certeza que deseja reiniciar o timer?'))return;clearInterval(timerInterval);isRunning=!1;timeRemaining=initialTime;updateDisplay();playPauseBtn.disabled=!1;playPauseBtn.textContent='Iniciar';playPauseBtn.classList.remove('btn-danger');playPauseBtn.classList.add('btn-outline-danger')});
+        resetBtn.addEventListener('click',()=>{if(!confirm('Tem certeza?'))return;clearInterval(timerInterval);isRunning=!1;timeRemaining=initialTime;updateDisplay();playPauseBtn.disabled=!1;playPauseBtn.textContent='Iniciar';playPauseBtn.classList.remove('btn-danger');playPauseBtn.classList.add('btn-outline-danger')});
     });
 </script>
 {% endblock %}
