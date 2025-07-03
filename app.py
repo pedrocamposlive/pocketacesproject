@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import func
-from brcode import brcode # Usando a biblioteca correta
+from brcode import brcode
 
 # --- CONFIGURAÇÃO E INICIALIZAÇÃO (sem alterações) ---
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -32,8 +32,6 @@ class Player(db.Model):
     payment_key = db.Column(db.String(200), nullable=True)
 
 # --- ROTAS (com a rota generate_pix atualizada) ---
-
-# Rota para gerar o payload do Pix
 @app.route('/generate_pix', methods=['POST'])
 def generate_pix():
     data = request.get_json()
@@ -42,34 +40,27 @@ def generate_pix():
 
     pix_key = data.get('key')
     name = data.get('name', 'Pagamento Poker')
-    amount = data.get('amount')
     
-    # --- MELHORIA: Sanitização dos dados ---
-    # Garante que o nome do beneficiário tenha no máximo 25 caracteres e seja simples.
     sanitized_name = ''.join(e for e in name if e.isalnum() or e.isspace())[:25].strip()
     if not sanitized_name:
         sanitized_name = 'JOGADOR'
 
-    # Garante que o ID da transação seja único e válido.
     txid = ''.join(c for c in name if c.isalnum()) + str(Game.query.count())
-    txid = "POKER" + txid[:15] # Limita o tamanho total
+    txid = "POKER" + txid[:15]
 
     try:
-        # Garante que o valor seja formatado como uma string com duas casas decimais.
-        formatted_amount = f"{float(amount):.2f}"
-
+        # --- ALTERAÇÃO PRINCIPAL: REMOVEMOS O PARÂMETRO 'amount' ---
+        # Isso gera um QR Code estático, que é mais simples e universal.
         payment = brcode(
             key=pix_key,
             name=sanitized_name,
-            city='SAO PAULO', # Pode ser alterado para qualquer cidade de 2 letras maiúsculas
-            amount=formatted_amount,
+            city='SAO PAULO',
             txid=txid
+            # O parâmetro 'amount' foi removido
         )
         payload = payment.generate()
         return jsonify({'payload': payload})
     except Exception as e:
-        # --- MELHORIA: Retorna um erro mais específico ---
-        # Isso nos ajudará a diagnosticar se o problema persistir.
         return jsonify({'error': f'Erro na biblioteca PIX: {str(e)}'}), 500
 
 # Demais rotas permanecem as mesmas...
