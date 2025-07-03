@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import func
-from brcode import brcode # <-- CORREÇÃO: O nome é 'brcode' minúsculo, não 'BrCode'.
+from brcode import brcode # Usando a biblioteca correta
 
 # --- CONFIGURAÇÃO E INICIALIZAÇÃO (sem alterações) ---
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -38,26 +38,39 @@ class Player(db.Model):
 def generate_pix():
     data = request.get_json()
     if not data:
-        return jsonify({'error': 'Invalid request'}), 400
+        return jsonify({'error': 'Requisição inválida'}), 400
 
     pix_key = data.get('key')
-    name = data.get('name')
+    name = data.get('name', 'Pagamento Poker')
     amount = data.get('amount')
-    txid = "POKER" + str(Player.query.count()) + str(Game.query.count())
+    
+    # --- MELHORIA: Sanitização dos dados ---
+    # Garante que o nome do beneficiário tenha no máximo 25 caracteres e seja simples.
+    sanitized_name = ''.join(e for e in name if e.isalnum() or e.isspace())[:25].strip()
+    if not sanitized_name:
+        sanitized_name = 'JOGADOR'
+
+    # Garante que o ID da transação seja único e válido.
+    txid = ''.join(c for c in name if c.isalnum()) + str(Game.query.count())
+    txid = "POKER" + txid[:15] # Limita o tamanho total
 
     try:
-        # CORREÇÃO: Usando o objeto 'brcode' minúsculo
+        # Garante que o valor seja formatado como uma string com duas casas decimais.
+        formatted_amount = f"{float(amount):.2f}"
+
         payment = brcode(
             key=pix_key,
-            name=name,
-            city='SAO PAULO', # Ou a cidade que preferir
-            amount=str(amount), # O valor precisa ser uma string
+            name=sanitized_name,
+            city='SAO PAULO', # Pode ser alterado para qualquer cidade de 2 letras maiúsculas
+            amount=formatted_amount,
             txid=txid
         )
         payload = payment.generate()
         return jsonify({'payload': payload})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        # --- MELHORIA: Retorna um erro mais específico ---
+        # Isso nos ajudará a diagnosticar se o problema persistir.
+        return jsonify({'error': f'Erro na biblioteca PIX: {str(e)}'}), 500
 
 # Demais rotas permanecem as mesmas...
 @app.route('/caixa', methods=['GET', 'POST'])
