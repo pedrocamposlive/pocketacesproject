@@ -31,33 +31,31 @@ class Player(db.Model):
     game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
     payment_key = db.Column(db.String(200), nullable=True)
 
-# --- ROTAS (com a rota generate_pix atualizada) ---
+# --- ROTAS ---
+
+# Rota para a página inicial
+@app.route('/')
+def index():
+    games = Game.query.order_by(Game.id.desc()).all()
+    return render_template('index.html', games=games)
+
+# --- NOVA ROTA PARA A PÁGINA DE TESTE ---
+@app.route('/test_pix')
+def test_pix_page():
+    """Renderiza a nossa nova página de teste de QR Code."""
+    return render_template('test_pix.html')
+
+# Rota para gerar o payload do Pix (sem alterações)
 @app.route('/generate_pix', methods=['POST'])
 def generate_pix():
     data = request.get_json()
-    if not data:
-        return jsonify({'error': 'Requisição inválida'}), 400
-
+    if not data: return jsonify({'error': 'Requisição inválida'}), 400
     pix_key = data.get('key')
     name = data.get('name', 'Pagamento Poker')
-    
-    sanitized_name = ''.join(e for e in name if e.isalnum() or e.isspace())[:25].strip()
-    if not sanitized_name:
-        sanitized_name = 'JOGADOR'
-
-    txid = ''.join(c for c in name if c.isalnum()) + str(Game.query.count())
-    txid = "POKER" + txid[:15]
-
+    sanitized_name = ''.join(e for e in name if e.isalnum() or e.isspace())[:25].strip() or 'JOGADOR'
+    txid = "POKER" + ''.join(c for c in name if c.isalnum())[:15] + str(Game.query.count())
     try:
-        # --- ALTERAÇÃO PRINCIPAL: REMOVEMOS O PARÂMETRO 'amount' ---
-        # Isso gera um QR Code estático, que é mais simples e universal.
-        payment = brcode(
-            key=pix_key,
-            name=sanitized_name,
-            city='SAO PAULO',
-            txid=txid
-            # O parâmetro 'amount' foi removido
-        )
+        payment = brcode(key=pix_key, name=sanitized_name, city='SAO PAULO', txid=txid)
         payload = payment.generate()
         return jsonify({'payload': payload})
     except Exception as e:
@@ -73,11 +71,6 @@ def caixa():
             found_player = Player.query.filter(func.lower(Player.name) == func.lower(search_name), Player.payment_key.isnot(None)).first()
             if not found_player: flash(f'Nenhum jogador chamado "{search_name}" com chave salva foi encontrado.', 'warning')
     return render_template('caixa.html', found_player=found_player, search_name=search_name)
-
-@app.route('/')
-def index():
-    games = Game.query.order_by(Game.id.desc()).all()
-    return render_template('index.html', games=games)
 
 @app.route('/game/new', methods=['GET', 'POST'])
 def new_game():
