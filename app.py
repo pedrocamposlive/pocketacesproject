@@ -1,29 +1,22 @@
 # Importações necessárias
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import func
+from pix_utils.pix import Pix # <-- NOVA IMPORTAÇÃO
 
-# --- CONFIGURAÇÃO DE CAMINHOS ---
+# --- CONFIGURAÇÃO E INICIALIZAÇÃO (sem alterações) ---
 basedir = os.path.abspath(os.path.dirname(__file__))
-
-# --- INICIALIZAÇÃO CORRETA DO APP ---
 app = Flask(__name__, template_folder=os.path.join(basedir, 'templates'))
-
-# --- Configuração do Banco de Dados e Chave Secreta ---
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'poker.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'uma-chave-secreta-bem-dificil'
-
-# Inicialização das extensões
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
-
-# --- VALOR FIXO PARA O CASH GAME ---
 CASH_GAME_VALUE = 50
 
-# --- Modelos do Banco de Dados ---
+# --- MODELOS (sem alterações) ---
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -38,13 +31,34 @@ class Player(db.Model):
     game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
     payment_key = db.Column(db.String(200), nullable=True)
 
-# --- Rotas ---
-@app.route('/')
-def index():
-    games = Game.query.order_by(Game.id.desc()).all()
-    return render_template('index.html', games=games)
+# --- ROTAS (com uma nova rota) ---
 
-# --- ALTERAÇÃO 2: NOVA ROTA PARA O CAIXA ---
+# Rota para gerar o payload do Pix
+@app.route('/generate_pix', methods=['POST'])
+def generate_pix():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid request'}), 400
+
+    pix_key = data.get('key')
+    name = data.get('name')
+    amount = data.get('amount')
+    txid = "POKER" + str(Player.query.count()) + str(Game.query.count()) # ID simples da transação
+
+    try:
+        pix_obj = Pix(
+            pix_key=pix_key,
+            merchant_name=name,
+            merchant_city="SAO PAULO", # Ou a cidade que preferir
+            txid=txid,
+            amount=amount
+        )
+        payload = pix_obj.get_br_code()
+        return jsonify({'payload': payload})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Rota do Caixa
 @app.route('/caixa', methods=['GET', 'POST'])
 def caixa():
     found_player = None
@@ -52,14 +66,17 @@ def caixa():
     if request.method == 'POST':
         search_name = request.form.get('player_name')
         if search_name:
-            # Procura pelo jogador, ignorando maiúsculas/minúsculas
-            # Pega o primeiro jogador encontrado que tenha uma chave de pagamento
             found_player = Player.query.filter(func.lower(Player.name) == func.lower(search_name), Player.payment_key.isnot(None)).first()
             if not found_player:
                 flash(f'Nenhum jogador chamado "{search_name}" com chave salva foi encontrado.', 'warning')
-    
     return render_template('caixa.html', found_player=found_player, search_name=search_name)
 
+
+# Demais rotas permanecem as mesmas...
+@app.route('/')
+def index():
+    games = Game.query.order_by(Game.id.desc()).all()
+    return render_template('index.html', games=games)
 
 @app.route('/game/new', methods=['GET', 'POST'])
 def new_game():
@@ -131,10 +148,8 @@ def end_game(game_id):
         players_to_update = Player.query.filter_by(game_id=game.id).all()
         for player in players_to_update:
             stack_value = request.form.get(f'stack_{player.id}')
-            try:
-                player.stack = int(stack_value) if stack_value else 0
-            except (ValueError, TypeError):
-                player.stack = player.stack or 0
+            try: player.stack = int(stack_value) if stack_value else 0
+            except (ValueError, TypeError): player.stack = player.stack or 0
         db.session.commit()
         flash('Saldos atualizados com sucesso!', 'success')
         return redirect(url_for('end_game', game_id=game.id))
@@ -144,23 +159,13 @@ def end_game(game_id):
     for player in players:
         total_invested = player.buy_ins * game.buy_in_value
         saldo = player.stack - total_invested
-        player_results.append({
-            'player_id': player.id,
-            'name': player.name,
-            'payment_key': player.payment_key,
-            'buy_ins_count': 1,
-            'rebuys_count': player.buy_ins - 1,
-            'total_invested': total_invested,
-            'final_stack': player.stack,
-            'saldo': saldo
-        })
+        player_results.append({'player_id': player.id, 'name': player.name, 'payment_key': player.payment_key, 'buy_ins_count': 1, 'rebuys_count': player.buy_ins - 1, 'total_invested': total_invested, 'final_stack': player.stack, 'saldo': saldo})
+    
     total_chips_in_play = sum(p.buy_ins for p in players) * game.buy_in_value
     total_final_chips = sum(p.stack for p in players)
     discrepancy = total_final_chips - total_chips_in_play
-    return render_template('end_game.html', 
-                           game=game,
-                           results=player_results,
-                           discrepancy=discrepancy)
+    
+    return render_template('end_game.html', game=game, results=player_results, discrepancy=discrepancy)
 
 if __name__ == '__main__':
     app.run(debug=True)
