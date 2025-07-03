@@ -4,8 +4,6 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import func
-# Usando a biblioteca correta e mais confiável
-from pixqrcodegen import Payload
 
 # --- CONFIGURAÇÃO E INICIALIZAÇÃO ---
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -17,7 +15,7 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 CASH_GAME_VALUE = 50
 
-# --- MODELOS (com a estrutura final) ---
+# --- MODELOS ---
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -30,18 +28,46 @@ class Player(db.Model):
     buy_ins = db.Column(db.Integer, default=1, nullable=False)
     stack = db.Column(db.Integer, default=0, nullable=False)
     game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
-    payment_key_type = db.Column(db.String(20), nullable=True) # Campo para o tipo de chave
-    payment_key = db.Column(db.String(200), nullable=True) # Campo para a chave
+    payment_key_type = db.Column(db.String(20), nullable=True)
+    payment_key = db.Column(db.String(200), nullable=True)
+
+# --- FUNÇÃO PARA GERAR O PAYLOAD PIX VÁLIDO ---
+def build_pix_payload(name, city, key, txid="***"):
+    name = ''.join(e for e in name if e.isalnum() or e.isspace())[:25].strip()
+    city = ''.join(e for e in city if e.isalnum() or e.isspace())[:15].strip()
+    
+    payload_format_indicator = "000201"
+    merchant_account_info = f"26{len('0014br.gov.bcb.pix' + '01' + str(len(key)).zfill(2) + key):02}0014br.gov.bcb.pix01{len(key):02}{key}"
+    merchant_category_code = "52040000"
+    transaction_currency = "5303986"
+    country_code = "5802BR"
+    merchant_name = f"59{len(name):02}{name}"
+    merchant_city = f"60{len(city):02}{city}"
+    additional_data_field = f"62{len('05' + str(len(txid)).zfill(2) + txid):02}05{len(txid):02}{txid}"
+    
+    payload = f"{payload_format_indicator}{merchant_account_info}{merchant_category_code}{transaction_currency}{country_code}{merchant_name}{merchant_city}{additional_data_field}6304"
+
+    # CRC16 Calculation
+    crc = 0xFFFF
+    for b in payload.encode('utf-8'):
+        crc ^= (b << 8)
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = (crc << 1) ^ 0x1021
+            else:
+                crc = crc << 1
+    crc_value = "{:04X}".format(crc & 0xFFFF)
+    
+    return payload + crc_value
 
 # --- ROTAS ---
-
 @app.route('/generate_pix', methods=['POST'])
 def generate_pix():
     data = request.get_json()
     if not data: return jsonify({'error': 'Requisição inválida'}), 400
     try:
-        payload = Payload(name=data.get('name'), city='SAO PAULO', key=data.get('key'))
-        return jsonify({'payload': payload.gerar_string()})
+        payload = build_pix_payload(name=data.get('name'), city='SAO PAULO', key=data.get('key'))
+        return jsonify({'payload': payload})
     except Exception as e:
         return jsonify({'error': f'Erro ao gerar código PIX: {str(e)}'}), 500
 
@@ -54,16 +80,11 @@ def set_key(player_id):
     flash(f'Chave de pagamento para {player.name} foi salva!', 'success')
     return redirect(url_for('game_details', game_id=player.game_id))
 
-# ... (outras rotas que não precisam de alteração) ...
-
+# ... (outras rotas permanecem iguais) ...
 @app.route('/')
 def index():
     games = Game.query.order_by(Game.id.desc()).all()
     return render_template('index.html', games=games)
-
-@app.route('/test_pix')
-def test_pix_page():
-    return render_template('test_pix.html')
 
 @app.route('/caixa', methods=['GET', 'POST'])
 def caixa():
