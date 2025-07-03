@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import func
-from brcode import BrCode # <-- MUDANÇA: Usando a nova biblioteca
+from brcode import brcode # <-- CORREÇÃO: O nome é 'brcode' minúsculo, não 'BrCode'.
 
 # --- CONFIGURAÇÃO E INICIALIZAÇÃO (sem alterações) ---
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -46,8 +46,8 @@ def generate_pix():
     txid = "POKER" + str(Player.query.count()) + str(Game.query.count())
 
     try:
-        # MUDANÇA: Usando a biblioteca brcode para gerar o payload
-        payment = BrCode(
+        # CORREÇÃO: Usando o objeto 'brcode' minúsculo
+        payment = brcode(
             key=pix_key,
             name=name,
             city='SAO PAULO', # Ou a cidade que preferir
