@@ -48,8 +48,8 @@ def generate_pix():
         payload = Payload(
             name=name,
             city='SAO PAULO', # Cidade do recebedor (2 letras maiúsculas)
-            key=pix_key,
-            # Não definimos o valor, gerando um QR Code estático
+            key=pix_key
+            # Não definimos o valor, gerando um QR Code estático e válido
         )
         # O método .gerar_string() cria o payload BR Code completo e válido
         br_code_payload = payload.gerar_string()
