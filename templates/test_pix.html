@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Isolado de QR Code PIX</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f0f0f0; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 8px; }
+        input { width: 100%; padding: 8px; margin-bottom: 10px; }
+        button { padding: 10px 15px; }
+        #qrcode-container { margin-top: 20px; padding: 10px; background: white; display: inline-block; }
+        #error-container { color: red; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Teste Isolado de QR Code PIX</h1>
+        
+        <hr>
+
+        <div>
+            <label for="pix-key-input">1. Insira a Chave PIX:</label>
+            <input type="text" id="pix-key-input" placeholder="Digite uma chave PIX válida aqui">
+        </div>
+        
+        <button id="generate-btn">2. Gerar QR Code Válido</button>
+
+        <div id="qr-result-area" style="display: none; text-align: center; margin-top: 20px;">
+            <hr>
+            <h3>3. Teste o QR Code nos Bancos</h3>
+            <div id="qrcode-container">
+                <!-- QR Code será gerado aqui -->
+            </div>
+            <div id="error-container" style="display: none;"></div>
+            <p>Chave Testada: <strong id="tested-key"></strong></p>
+        </div>
+    </div>
+
+    <!-- Biblioteca para gerar o QR Code -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+    <!-- Nosso script de teste -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const generateBtn = document.getElementById('generate-btn');
+            const keyInput = document.getElementById('pix-key-input');
+            const qrResultArea = document.getElementById('qr-result-area');
+            const qrContainer = document.getElementById('qrcode-container');
+            const errorContainer = document.getElementById('error-container');
+            const testedKeySpan = document.getElementById('tested-key');
+
+            generateBtn.addEventListener('click', async function() {
+                const key = keyInput.value;
+                if (!key) {
+                    alert('Por favor, insira uma chave PIX.');
+                    return;
+                }
+
+                // Prepara a interface para o resultado
+                qrContainer.innerHTML = '';
+                errorContainer.style.display = 'none';
+                testedKeySpan.textContent = key;
+                qrResultArea.style.display = 'block';
+
+                try {
+                    // A chamada para o backend continua a mesma
+                    const response = await fetch("{{ url_for('generate_pix') }}", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key: key, name: 'TESTE' })
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Falha ao gerar o payload do PIX.');
+                    }
+                    
+                    if (data.payload) {
+                        new QRCode(qrContainer, {
+                            text: data.payload,
+                            width: 200,
+                            height: 200,
+                            correctLevel: QRCode.CorrectLevel.H
+                        });
+                    } else {
+                        throw new Error('Payload não recebido do servidor.');
+                    }
+
+                } catch (err) {
+                    console.error('Erro no teste do PIX:', err);
+                    errorContainer.textContent = `Erro: ${err.message}`;
+                    errorContainer.style.display = 'block';
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
