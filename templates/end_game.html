@@ -1,7 +1,7 @@
 {% extends 'layout.html' %}
 {% block content %}
-<div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-3 gap-2">
-  <h2 class="mb-0 text-center text-md-start">Resumo Final: {{ game.name }}</h2>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Resumo Final: {{ game.name }}</h2>
   <div class="d-flex gap-2">
     <a href="{{ url_for('caixa') }}" class="btn btn-secondary">Consultar Chave (Caixa)</a>
     <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Voltar para Início</a>
@@ -16,31 +16,32 @@
                     <thead>
                         <tr class="text-center">
                             <th scope="col" class="text-start">Nome</th>
-                            <th scope="col">Buy-ins</th>
-                            <th scope="col">Rebuys</th>
-                            <th scope="col">Total (Fichas)</th>
-                            <th scope="col">Final (Fichas)</th>
-                            <th scope="col">Saldo (Fichas)</th>
-                            <th scope="col">Ações</th>
+                            <th scope="col">Buy-ins</th><th scope="col">Rebuys</th>
+                            <th scope="col">Total (Fichas)</th><th scope="col">Final (Fichas)</th>
+                            <th scope="col">Saldo (Fichas)</th><th scope="col">Ações</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for result in results %}
                         <tr class="text-center">
                             <td class="text-start fw-bold">{{ result.name }}</td>
-                            <td>{{ result.buy_ins_count }}</td>
-                            <td>{{ result.rebuys_count }}</td>
+                            <td>{{ result.buy_ins_count }}</td><td>{{ result.rebuys_count }}</td>
                             <td>{{ result.total_invested }}</td>
-                            <td><input type="number" class="form-control form-control-sm text-center bg-dark text-light" style="min-width: 80px;" name="stack_{{ result.player_id }}" value="{{ result.final_stack }}" placeholder="0"></td>
+                            <td><input type="number" class="form-control form-control-sm text-center bg-dark text-light" name="stack_{{ result.player_id }}" value="{{ result.final_stack }}" placeholder="0"></td>
                             <td class="fw-bold {% if result.saldo > 0 %}text-success{% elif result.saldo < 0 %}text-danger{% endif %}">{{ result.saldo }}</td>
                             <td>
                                 {% if result.payment_key %}
-                                <button type="button" class="btn btn-outline-light btn-sm generate-qr-btn" data-bs-toggle="modal" data-bs-target="#qrModal{{ result.player_id }}" data-key="{{ result.payment_key }}">QR Code</button>
+                                <button type="button" class="btn btn-outline-light btn-sm generate-qr-btn"
+                                        data-bs-toggle="modal" data-bs-target="#qrModal{{ result.player_id }}"
+                                        data-key="{{ result.payment_key }}"
+                                        data-name="{{ result.name }}"
+                                        data-amount="{{ result.saldo|abs if result.saldo < 0 else result.saldo }}">
+                                    QR Code
+                                </button>
                                 {% endif %}
                             </td>
                         </tr>
                         <div class="modal fade" id="qrModal{{ result.player_id }}" tabindex="-1" aria-hidden="true">
-                            <!-- AQUI ESTÁ A MUDANÇA: modal-fullscreen-sm -->
                             <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm">
                                 <div class="modal-content bg-dark text-light">
                                     <div class="modal-header">
@@ -48,9 +49,13 @@
                                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                                     </div>
                                     <div class="modal-body text-center p-4">
-                                        <div id="qrcode-container-{{ result.player_id }}" class="bg-white p-3 d-inline-block rounded"></div>
+                                        <div id="qrcode-container-{{ result.player_id }}" class="bg-white p-3 d-inline-block rounded">
+                                            </div>
+                                        <div id="error-container-{{ result.player_id }}" class="text-danger mt-3" style="display: none;"></div>
                                         <p class="mt-3">Chave: <strong>{{ result.payment_key }}</strong></p>
-                                        <p class="mt-3 fw-bold {% if result.saldo > 0 %}text-success{% elif result.saldo < 0 %}text-danger{% else %}text-white-50{% endif %}">Resultado: {{ result.saldo }} Fichas</p>
+                                        <p class="mt-3 fw-bold {% if result.saldo > 0 %}text-success{% elif result.saldo < 0 %}text-danger{% else %}text-white-50{% endif %}">
+                                            Resultado: {{ result.saldo }} Fichas/Reais
+                                        </p>
                                         <button type="button" class="btn btn-secondary mt-3" data-bs-dismiss="modal">Fechar</button>
                                     </div>
                                 </div>
@@ -60,21 +65,60 @@
                     </tbody>
                 </table>
             </div>
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mt-3 gap-3">
-                <button type="submit" class="btn btn-danger w-100 w-md-auto">Atualizar Saldos</button>
-                <div class="text-center text-md-end"><strong>Discrepância do Caixa:</strong><span class="badge {% if discrepancy == 0 %}bg-success{% else %}bg-danger{% endif %} fs-6 ms-2">{{ discrepancy }} fichas</span></div>
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <button type="submit" class="btn btn-danger">Atualizar Saldos</button>
+                <div class="text-end"><strong>Discrepância do Caixa:</strong><span class="badge {% if discrepancy == 0 %}bg-success{% else %}bg-danger{% endif %} fs-6 ms-2">{{ discrepancy }} fichas</span></div>
             </div>
         </form>
     </div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.generate-qr-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const key = this.dataset.key; const playerId = this.dataset.bsTarget.replace('#qrModal', ''); const qrContainer = document.getElementById(`qrcode-container-${playerId}`);
-            qrContainer.innerHTML = '';
-            new QRCode(qrContainer, { text: key, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H });
+        button.addEventListener('click', async function() {
+            const key = this.dataset.key;
+            const name = this.dataset.name;
+            const amount = parseFloat(this.dataset.amount).toFixed(2);
+            const playerId = this.dataset.bsTarget.replace('#qrModal', '');
+            const qrContainer = document.getElementById(`qrcode-container-${playerId}`);
+            const errorContainer = document.getElementById(`error-container-${playerId}`);
+
+            qrContainer.innerHTML = ''; // Limpa o anterior
+            errorContainer.style.display = 'none';
+
+            try {
+                // Faz a chamada para o nosso backend
+                const response = await fetch("{{ url_for('generate_pix') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: key, name: name, amount: amount })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Falha ao gerar o payload do PIX.');
+                }
+
+                const data = await response.json();
+                
+                if (data.payload) {
+                    // Gera o QR Code com o payload recebido do backend
+                    new QRCode(qrContainer, {
+                        text: data.payload,
+                        width: 256,
+                        height: 256,
+                        correctLevel: QRCode.CorrectLevel.H
+                    });
+                } else {
+                    throw new Error(data.error || 'Payload não recebido.');
+                }
+
+            } catch (err) {
+                console.error(err);
+                errorContainer.textContent = 'Erro ao gerar QR Code. Verifique a chave e tente novamente.';
+                errorContainer.style.display = 'block';
+            }
         });
     });
 });
