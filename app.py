@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import func
-# --- ALTERAÇÃO 1: A forma correta de importar a ferramenta ---
+# A forma correta de importar a ferramenta
 from brcode import brcode
 
 # --- CONFIGURAÇÃO E INICIALIZAÇÃO (sem alterações) ---
@@ -47,7 +47,7 @@ def generate_pix():
     txid = "POKER" + ''.join(c for c in name if c.isalnum())[:15] + str(Game.query.count())
 
     try:
-        # --- ALTERAÇÃO 2: Chamando a ferramenta 'brcode' com o nome correto (minúsculo) ---
+        # --- CORREÇÃO DEFINITIVA: Chamando a ferramenta 'brcode' com o nome correto (minúsculo) ---
         payment = brcode(
             key=pix_key,
             name=sanitized_name,
@@ -57,7 +57,8 @@ def generate_pix():
         payload = payment.generate()
         return jsonify({'payload': payload})
     except Exception as e:
-        return jsonify({'error': f'Erro na biblioteca PIX: {str(e)}'}), 500
+        # Adicionei um "v3" para termos certeza que o código novo está rodando
+        return jsonify({'error': f'Erro v3 na biblioteca PIX: {str(e)}'}), 500
 
 # Demais rotas permanecem as mesmas...
 @app.route('/test_pix')
