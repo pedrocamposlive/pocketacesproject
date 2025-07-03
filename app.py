@@ -4,8 +4,10 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import func
+# Usando a biblioteca correta e mais confiável
+from pixqrcodegen import Payload
 
-# --- CONFIGURAÇÃO E INICIALIZAÇÃO (sem alterações) ---
+# --- CONFIGURAÇÃO E INICIALIZAÇÃO ---
 basedir = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__, template_folder=os.path.join(basedir, 'templates'))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'poker.db')
@@ -15,7 +17,7 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 CASH_GAME_VALUE = 50
 
-# --- MODELOS (com novos campos) ---
+# --- MODELOS (com a estrutura final) ---
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
@@ -28,79 +30,31 @@ class Player(db.Model):
     buy_ins = db.Column(db.Integer, default=1, nullable=False)
     stack = db.Column(db.Integer, default=0, nullable=False)
     game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
-    # --- MUDANÇA NO BANCO: Adicionamos o tipo da chave ---
-    payment_key_type = db.Column(db.String(20), nullable=True)
-    payment_key = db.Column(db.String(200), nullable=True)
-
-# --- FUNÇÃO HELPER PARA GERAR O PAYLOAD PIX ---
-def build_pix_payload(name, city, key, txid="***"):
-    # Função para calcular o CRC16, obrigatório no payload
-    def crc16(payload):
-        crc = 0xFFFF
-        for b in payload.encode('utf-8'):
-            crc ^= (b << 8)
-            for _ in range(8):
-                if (crc & 0x8000):
-                    crc = (crc << 1) ^ 0x1021
-                else:
-                    crc = crc << 1
-        return "{:04X}".format(crc & 0xFFFF)
-
-    # Função para formatar um campo TLV (Tag, Length, Value)
-    def format_tlv(tag, value):
-        return f"{tag:02}{len(value):02}{value}"
-
-    # Sanitiza os dados para remover caracteres problemáticos
-    name = ''.join(e for e in name if e.isalnum() or e.isspace())[:25].strip()
-    city = ''.join(e for e in city if e.isalnum() or e.isspace())[:15].strip()
-
-    # Monta o payload seguindo o padrão do Banco Central
-    payload = ""
-    payload += format_tlv(0, "01")  # Payload Format Indicator
-    payload += format_tlv(26, format_tlv(0, "br.gov.bcb.pix") + format_tlv(1, key))
-    payload += format_tlv(52, "0000")  # Merchant Category Code
-    payload += format_tlv(53, "986")   # Transaction Currency (BRL)
-    payload += format_tlv(58, "BR")    # Country Code
-    payload += format_tlv(59, name)    # Merchant Name
-    payload += format_tlv(60, city)    # Merchant City
-    payload += format_tlv(62, format_tlv(5, txid)) # Transaction ID
-
-    # Adiciona o campo de verificação CRC16
-    payload_with_crc = f"{payload}6304"
-    crc_value = crc16(payload_with_crc)
-    
-    return payload_with_crc + crc_value
-
+    payment_key_type = db.Column(db.String(20), nullable=True) # Campo para o tipo de chave
+    payment_key = db.Column(db.String(200), nullable=True) # Campo para a chave
 
 # --- ROTAS ---
 
 @app.route('/generate_pix', methods=['POST'])
 def generate_pix():
     data = request.get_json()
-    if not data:
-        return jsonify({'error': 'Requisição inválida'}), 400
-
-    pix_key = data.get('key')
-    name = data.get('name', 'Pagamento Poker')
-    
+    if not data: return jsonify({'error': 'Requisição inválida'}), 400
     try:
-        # Chama nossa nova função para construir o payload
-        br_code_payload = build_pix_payload(name=name, city='SAO PAULO', key=pix_key)
-        return jsonify({'payload': br_code_payload})
+        payload = Payload(name=data.get('name'), city='SAO PAULO', key=data.get('key'))
+        return jsonify({'payload': payload.gerar_string()})
     except Exception as e:
         return jsonify({'error': f'Erro ao gerar código PIX: {str(e)}'}), 500
 
 @app.route('/player/<int:player_id>/set_key', methods=['POST'])
 def set_key(player_id):
     player = Player.query.get_or_404(player_id)
-    # Agora salvamos o tipo e o valor da chave
     player.payment_key_type = request.form.get('payment_key_type')
     player.payment_key = request.form.get('payment_key')
     db.session.commit()
     flash(f'Chave de pagamento para {player.name} foi salva!', 'success')
     return redirect(url_for('game_details', game_id=player.game_id))
 
-# ... (outras rotas permanecem iguais, vou omitir para brevidade) ...
+# ... (outras rotas que não precisam de alteração) ...
 
 @app.route('/')
 def index():
