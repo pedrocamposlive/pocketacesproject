@@ -4,7 +4,8 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import func
-from brcode import brcode
+# --- ALTERAÇÃO 1: Importamos a "caixa de ferramentas" inteira ---
+import brcode
 
 # --- CONFIGURAÇÃO E INICIALIZAÇÃO (sem alterações) ---
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -31,37 +32,38 @@ class Player(db.Model):
     game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
     payment_key = db.Column(db.String(200), nullable=True)
 
-# --- ROTAS ---
+# --- ROTAS (com a rota generate_pix corrigida) ---
 
-# Rota para a página inicial
-@app.route('/')
-def index():
-    games = Game.query.order_by(Game.id.desc()).all()
-    return render_template('index.html', games=games)
-
-# --- NOVA ROTA PARA A PÁGINA DE TESTE ---
-@app.route('/test_pix')
-def test_pix_page():
-    """Renderiza a nossa nova página de teste de QR Code."""
-    return render_template('test_pix.html')
-
-# Rota para gerar o payload do Pix (sem alterações)
 @app.route('/generate_pix', methods=['POST'])
 def generate_pix():
     data = request.get_json()
-    if not data: return jsonify({'error': 'Requisição inválida'}), 400
+    if not data:
+        return jsonify({'error': 'Requisição inválida'}), 400
+
     pix_key = data.get('key')
     name = data.get('name', 'Pagamento Poker')
+    
     sanitized_name = ''.join(e for e in name if e.isalnum() or e.isspace())[:25].strip() or 'JOGADOR'
     txid = "POKER" + ''.join(c for c in name if c.isalnum())[:15] + str(Game.query.count())
+
     try:
-        payment = brcode(key=pix_key, name=sanitized_name, city='SAO PAULO', txid=txid)
+        # --- ALTERAÇÃO 2: Usamos a ferramenta 'BrCode' de dentro da "caixa" 'brcode' ---
+        payment = brcode.BrCode(
+            key=pix_key,
+            name=sanitized_name,
+            city='SAO PAULO',
+            txid=txid
+        )
         payload = payment.generate()
         return jsonify({'payload': payload})
     except Exception as e:
         return jsonify({'error': f'Erro na biblioteca PIX: {str(e)}'}), 500
 
 # Demais rotas permanecem as mesmas...
+@app.route('/test_pix')
+def test_pix_page():
+    return render_template('test_pix.html')
+
 @app.route('/caixa', methods=['GET', 'POST'])
 def caixa():
     found_player = None; search_name = ""
@@ -71,6 +73,11 @@ def caixa():
             found_player = Player.query.filter(func.lower(Player.name) == func.lower(search_name), Player.payment_key.isnot(None)).first()
             if not found_player: flash(f'Nenhum jogador chamado "{search_name}" com chave salva foi encontrado.', 'warning')
     return render_template('caixa.html', found_player=found_player, search_name=search_name)
+
+@app.route('/')
+def index():
+    games = Game.query.order_by(Game.id.desc()).all()
+    return render_template('index.html', games=games)
 
 @app.route('/game/new', methods=['GET', 'POST'])
 def new_game():
