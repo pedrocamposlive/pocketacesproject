@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import func
-from pix_utils.pix import Pix # <-- NOVA IMPORTAÇÃO
+from brcode import BrCode # <-- MUDANÇA: Usando a nova biblioteca
 
 # --- CONFIGURAÇÃO E INICIALIZAÇÃO (sem alterações) ---
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -31,7 +31,7 @@ class Player(db.Model):
     game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
     payment_key = db.Column(db.String(200), nullable=True)
 
-# --- ROTAS (com uma nova rota) ---
+# --- ROTAS (com a rota generate_pix atualizada) ---
 
 # Rota para gerar o payload do Pix
 @app.route('/generate_pix', methods=['POST'])
@@ -43,36 +43,33 @@ def generate_pix():
     pix_key = data.get('key')
     name = data.get('name')
     amount = data.get('amount')
-    txid = "POKER" + str(Player.query.count()) + str(Game.query.count()) # ID simples da transação
+    txid = "POKER" + str(Player.query.count()) + str(Game.query.count())
 
     try:
-        pix_obj = Pix(
-            pix_key=pix_key,
-            merchant_name=name,
-            merchant_city="SAO PAULO", # Ou a cidade que preferir
-            txid=txid,
-            amount=amount
+        # MUDANÇA: Usando a biblioteca brcode para gerar o payload
+        payment = BrCode(
+            key=pix_key,
+            name=name,
+            city='SAO PAULO', # Ou a cidade que preferir
+            amount=str(amount), # O valor precisa ser uma string
+            txid=txid
         )
-        payload = pix_obj.get_br_code()
+        payload = payment.generate()
         return jsonify({'payload': payload})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# Rota do Caixa
+# Demais rotas permanecem as mesmas...
 @app.route('/caixa', methods=['GET', 'POST'])
 def caixa():
-    found_player = None
-    search_name = ""
+    found_player = None; search_name = ""
     if request.method == 'POST':
         search_name = request.form.get('player_name')
         if search_name:
             found_player = Player.query.filter(func.lower(Player.name) == func.lower(search_name), Player.payment_key.isnot(None)).first()
-            if not found_player:
-                flash(f'Nenhum jogador chamado "{search_name}" com chave salva foi encontrado.', 'warning')
+            if not found_player: flash(f'Nenhum jogador chamado "{search_name}" com chave salva foi encontrado.', 'warning')
     return render_template('caixa.html', found_player=found_player, search_name=search_name)
 
-
-# Demais rotas permanecem as mesmas...
 @app.route('/')
 def index():
     games = Game.query.order_by(Game.id.desc()).all()
