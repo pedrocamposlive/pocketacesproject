@@ -4,8 +4,8 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import func
-# --- ALTERAÇÃO 1: Importamos a "caixa de ferramentas" inteira ---
-import brcode
+# --- ALTERAÇÃO 1: A forma correta de importar a ferramenta ---
+from brcode import brcode
 
 # --- CONFIGURAÇÃO E INICIALIZAÇÃO (sem alterações) ---
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -47,8 +47,8 @@ def generate_pix():
     txid = "POKER" + ''.join(c for c in name if c.isalnum())[:15] + str(Game.query.count())
 
     try:
-        # --- ALTERAÇÃO 2: Usamos a ferramenta 'BrCode' de dentro da "caixa" 'brcode' ---
-        payment = brcode.BrCode(
+        # --- ALTERAÇÃO 2: Chamando a ferramenta 'brcode' com o nome correto (minúsculo) ---
+        payment = brcode(
             key=pix_key,
             name=sanitized_name,
             city='SAO PAULO',
