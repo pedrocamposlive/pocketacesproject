@@ -1,5 +1,6 @@
 # Importações necessárias
 import os
+import json
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -15,11 +16,45 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 CASH_GAME_VALUE = 50
 
+# Estruturas de blinds pré-definidas para torneios
+BLIND_STRUCTURES = {
+    'turbo': [
+        {'level': 1, 'sb': 10, 'bb': 20},
+        {'level': 2, 'sb': 15, 'bb': 30},
+        {'level': 3, 'sb': 25, 'bb': 50},
+        {'level': 4, 'sb': 50, 'bb': 100},
+        {'level': 5, 'sb': 75, 'bb': 150},
+        {'level': 6, 'sb': 100, 'bb': 200},
+        {'level': 7, 'sb': 150, 'bb': 300},
+        {'level': 8, 'sb': 200, 'bb': 400},
+        {'level': 9, 'sb': 300, 'bb': 600},
+        {'level': 10, 'sb': 400, 'bb': 800},
+    ],
+    'normal': [
+        {'level': 1, 'sb': 5, 'bb': 10},
+        {'level': 2, 'sb': 10, 'bb': 20},
+        {'level': 3, 'sb': 15, 'bb': 30},
+        {'level': 4, 'sb': 25, 'bb': 50},
+        {'level': 5, 'sb': 50, 'bb': 100},
+        {'level': 6, 'sb': 75, 'bb': 150},
+        {'level': 7, 'sb': 100, 'bb': 200},
+        {'level': 8, 'sb': 150, 'bb': 300},
+        {'level': 9, 'sb': 200, 'bb': 400},
+        {'level': 10, 'sb': 300, 'bb': 600},
+    ]
+}
+
 # --- MODELOS ---
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     buy_in_value = db.Column(db.Integer, nullable=False, default=CASH_GAME_VALUE)
+    game_type = db.Column(db.String(20), nullable=False, default='cash')  # 'cash' ou 'tournament'
+    blind_structure = db.Column(db.Text, nullable=True)  # JSON com estrutura de blinds
+    blind_duration = db.Column(db.Integer, nullable=True)  # minutos por nível
+    rebuy_limit = db.Column(db.Integer, nullable=True, default=2)  # máximo de rebuys
+    rebuy_until_level = db.Column(db.Integer, nullable=True, default=6)  # rebuy até qual nível
+    current_level = db.Column(db.Integer, nullable=False, default=1)  # nível atual do torneio
     players = db.relationship('Player', backref='game', lazy=True, cascade="all, delete-orphan")
 
 class Player(db.Model):
@@ -30,6 +65,7 @@ class Player(db.Model):
     game_id = db.Column(db.Integer, db.ForeignKey('game.id'), nullable=False)
     payment_key_type = db.Column(db.String(20), nullable=True)
     payment_key = db.Column(db.String(200), nullable=True)
+    rebuys_used = db.Column(db.Integer, default=0, nullable=False)  # controle de rebuys em torneios
 
 # --- FUNÇÃO PARA GERAR O PAYLOAD PIX VÁLIDO ---
 def build_pix_payload(name, city, key, txid="***"):
@@ -100,8 +136,26 @@ def caixa():
 def new_game():
     if request.method == 'POST':
         name = request.form['name']
-        if not name: flash('O nome do jogo é obrigatório!', 'danger'); return redirect(url_for('new_game'))
-        new_game = Game(name=name, buy_in_value=CASH_GAME_VALUE)
+        game_type = request.form.get('game_type', 'cash')
+
+        if not name:
+            flash('O nome do jogo é obrigatório!', 'danger')
+            return redirect(url_for('new_game'))
+
+        new_game = Game(name=name, buy_in_value=CASH_GAME_VALUE, game_type=game_type)
+
+        # Se for torneio, configurar parâmetros adicionais
+        if game_type == 'tournament':
+            blind_structure_type = request.form.get('blind_structure', 'normal')
+            blind_duration = int(request.form.get('blind_duration', 10))
+            rebuy_until_level = int(request.form.get('rebuy_until_level', 6))
+
+            new_game.blind_structure = json.dumps(BLIND_STRUCTURES[blind_structure_type])
+            new_game.blind_duration = blind_duration
+            new_game.rebuy_limit = 2
+            new_game.rebuy_until_level = rebuy_until_level
+            new_game.current_level = 1
+
         db.session.add(new_game)
         db.session.commit()
         flash('Jogo criado com sucesso!', 'success')
@@ -112,7 +166,17 @@ def new_game():
 def game_details(game_id):
     game = Game.query.get_or_404(game_id)
     players = Player.query.filter_by(game_id=game.id).all()
-    return render_template('game_details.html', game=game, players=players, cash_value=CASH_GAME_VALUE)
+
+    # Se for torneio, parsear estrutura de blinds
+    blind_structure = None
+    if game.game_type == 'tournament' and game.blind_structure:
+        blind_structure = json.loads(game.blind_structure)
+
+    return render_template('game_details.html',
+                         game=game,
+                         players=players,
+                         cash_value=CASH_GAME_VALUE,
+                         blind_structure=blind_structure)
 
 @app.route('/game/<int:game_id>/add_player', methods=['POST'])
 def add_player(game_id):
@@ -128,10 +192,38 @@ def add_player(game_id):
 @app.route('/player/<int:player_id>/rebuy', methods=['POST'])
 def rebuy(player_id):
     player = Player.query.get_or_404(player_id)
+    game = player.game
+
+    # Verificar se é torneio e validar condições
+    if game.game_type == 'tournament':
+        if game.current_level >= game.rebuy_until_level:
+            flash(f'Período de rebuy encerrado! (Nível {game.current_level})', 'danger')
+            return redirect(url_for('game_details', game_id=player.game_id))
+
+        if player.rebuys_used >= game.rebuy_limit:
+            flash(f'{player.name} já atingiu o limite de {game.rebuy_limit} rebuys!', 'danger')
+            return redirect(url_for('game_details', game_id=player.game_id))
+
+        player.rebuys_used += 1
+
     player.buy_ins += 1
+    player.stack += CASH_GAME_VALUE  # adicionar fichas ao stack
     db.session.commit()
     flash(f'Rebuy de {CASH_GAME_VALUE} fichas adicionado para {player.name}!', 'info')
     return redirect(url_for('game_details', game_id=player.game_id))
+
+@app.route('/game/<int:game_id>/update_level', methods=['POST'])
+def update_level(game_id):
+    game = Game.query.get_or_404(game_id)
+    data = request.get_json()
+    new_level = data.get('level')
+
+    if new_level:
+        game.current_level = new_level
+        db.session.commit()
+        return jsonify({'success': True, 'level': new_level})
+
+    return jsonify({'success': False}), 400
 
 @app.route('/player/<int:player_id>/delete', methods=['POST'])
 def delete_player(player_id):
@@ -164,17 +256,60 @@ def end_game(game_id):
         return redirect(url_for('end_game', game_id=game.id))
 
     players = Player.query.filter_by(game_id=game.id).all()
+
+    # Calcular premiação de torneio se aplicável
+    prize_pool = None
+    tournament_prizes = None
+    if game.game_type == 'tournament':
+        total_buy_ins = sum(p.buy_ins for p in players)
+        prize_pool = total_buy_ins * game.buy_in_value
+
+        # Ordenar jogadores por stack (ranking)
+        sorted_players = sorted(players, key=lambda p: p.stack, reverse=True)
+
+        # Distribuição: 50%, 30%, 20%
+        tournament_prizes = []
+        if len(sorted_players) >= 1:
+            tournament_prizes.append({
+                'position': '1º 🏆',
+                'name': sorted_players[0].name,
+                'stack': sorted_players[0].stack,
+                'percentage': 50,
+                'value': prize_pool * 0.50
+            })
+        if len(sorted_players) >= 2:
+            tournament_prizes.append({
+                'position': '2º 🥈',
+                'name': sorted_players[1].name,
+                'stack': sorted_players[1].stack,
+                'percentage': 30,
+                'value': prize_pool * 0.30
+            })
+        if len(sorted_players) >= 3:
+            tournament_prizes.append({
+                'position': '3º 🥉',
+                'name': sorted_players[2].name,
+                'stack': sorted_players[2].stack,
+                'percentage': 20,
+                'value': prize_pool * 0.20
+            })
+
     player_results = []
     for player in players:
         total_invested = player.buy_ins * game.buy_in_value
         saldo = player.stack - total_invested
         player_results.append({'player_id': player.id, 'name': player.name, 'payment_key': player.payment_key, 'buy_ins_count': 1, 'rebuys_count': player.buy_ins - 1, 'total_invested': total_invested, 'final_stack': player.stack, 'saldo': saldo})
-    
+
     total_chips_in_play = sum(p.buy_ins for p in players) * game.buy_in_value
     total_final_chips = sum(p.stack for p in players)
     discrepancy = total_final_chips - total_chips_in_play
-    
-    return render_template('end_game.html', game=game, results=player_results, discrepancy=discrepancy)
+
+    return render_template('end_game.html',
+                         game=game,
+                         results=player_results,
+                         discrepancy=discrepancy,
+                         prize_pool=prize_pool,
+                         tournament_prizes=tournament_prizes)
 
 if __name__ == '__main__':
     app.run(debug=True)

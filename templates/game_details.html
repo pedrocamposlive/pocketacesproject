@@ -10,6 +10,45 @@
   </div>
 </div>
 <div class="card mb-4 text-center">
+    {% if game.game_type == 'tournament' %}
+    <div class="card-header">⏱️ Timer do Torneio</div>
+    <div class="card-body">
+        <div class="mb-2">
+            <span class="badge bg-secondary fs-5">NÍVEL <span id="current-level-display">{{ game.current_level }}</span></span>
+        </div>
+        <div class="mb-2">
+            <h2 id="blinds-display" class="fw-bold">
+                {% if blind_structure %}
+                    {{ blind_structure[game.current_level - 1].sb }}/{{ blind_structure[game.current_level - 1].bb }}
+                {% endif %}
+            </h2>
+        </div>
+        <h1 id="timer-display" class="display-3 fw-bold">{{ '%02d'|format(game.blind_duration) }}:00</h1>
+        <div class="mt-2">
+            <span id="rebuy-status" class="badge {% if game.current_level < game.rebuy_until_level %}bg-success{% else %}bg-danger{% endif %} fs-6">
+                {% if game.current_level < game.rebuy_until_level %}
+                    🟢 PERÍODO DE REBUY ABERTO
+                {% else %}
+                    🔴 REBUY FECHADO
+                {% endif %}
+            </span>
+        </div>
+        <div class="mt-2 text-muted small">
+            <span id="next-blinds-display">
+                {% if blind_structure and game.current_level < blind_structure|length %}
+                    Próximo: {{ blind_structure[game.current_level].sb }}/{{ blind_structure[game.current_level].bb }}
+                {% else %}
+                    Último nível
+                {% endif %}
+            </span>
+        </div>
+        <div class="d-flex justify-content-center gap-2 mt-3">
+            <button id="play-pause-btn" class="btn btn-outline-danger">Iniciar</button>
+            <button id="reset-btn" class="btn btn-outline-secondary">Reiniciar</button>
+            <button id="next-level-btn" class="btn btn-outline-warning">Próximo Nível</button>
+        </div>
+    </div>
+    {% else %}
     <div class="card-header">Tempo da Jogatina</div>
     <div class="card-body">
         <h1 id="timer-display" class="display-3 fw-bold">04:00:00</h1>
@@ -18,6 +57,7 @@
             <button id="reset-btn" class="btn btn-outline-secondary">Reiniciar</button>
         </div>
     </div>
+    {% endif %}
 </div>
 <div class="card mb-4">
   <div class="card-body">
@@ -34,13 +74,31 @@
       <div class="d-block d-md-flex justify-content-md-between align-items-md-center">
         <div class="mb-3 mb-md-0 text-center text-md-start">
           <h5 class="mb-1">{{ player.name }}</h5>
+          {% if game.game_type == 'tournament' %}
+          <small class="text-muted d-block">Stack: <strong class="text-warning">{{ player.stack if player.stack > 0 else (player.buy_ins * cash_value) }} fichas</strong></small>
+          <small class="text-muted">Investido: <strong>{{ player.buy_ins * cash_value }} fichas</strong>
+            {% if player.buy_ins > 1 %}(1 Buy-in + {{ player.buy_ins - 1 }} Rebuys){% else %}(1 Buy-in){% endif %}
+          </small>
+          <div class="mt-1">
+            <span class="badge {% if player.rebuys_used == 0 %}bg-success{% elif player.rebuys_used == 1 %}bg-warning{% else %}bg-secondary{% endif %} me-1">
+              Rebuys: {{ player.rebuys_used }}/2
+            </span>
+          </div>
+          {% else %}
           <small class="text-muted">Total Investido: <strong>{{ player.buy_ins * cash_value }} fichas</strong>
             {% if player.buy_ins > 1 %}(1 Buy-in + {{ player.buy_ins - 1 }} Rebuys){% else %}(1 Buy-in){% endif %}
           </small>
+          {% endif %}
         </div>
         <div class="d-flex gap-2 justify-content-center">
             <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#keyModal{{ player.id }}">🔑 Chave</button>
+            {% if game.game_type == 'cash' %}
             <form method="POST" action="{{ url_for('rebuy', player_id=player.id) }}" class="d-inline"><button type="submit" class="btn btn-danger">+ Rebuy ({{ cash_value }})</button></form>
+            {% else %}
+            <form method="POST" action="{{ url_for('rebuy', player_id=player.id) }}" class="d-inline">
+              <button type="submit" class="btn btn-danger rebuy-btn" data-level="{{ game.current_level }}" data-rebuy-limit="{{ game.rebuy_until_level }}" data-rebuys-used="{{ player.rebuys_used }}" {% if game.current_level >= game.rebuy_until_level or player.rebuys_used >= 2 %}disabled{% endif %}>+ Rebuy ({{ cash_value }})</button>
+            </form>
+            {% endif %}
             <form method="POST" action="{{ url_for('delete_player', player_id=player.id) }}" class="d-inline"><button type="submit" class="btn btn-outline-secondary btn-sm">X</button></form>
         </div>
       </div>
@@ -72,17 +130,188 @@
     </div>
   {% endfor %}
 </div>
-<!-- Script do Timer (sem alteração) -->
+<!-- Script do Timer -->
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const initialTime = 4 * 60 * 60; let timeRemaining = initialTime; let timerInterval; let isRunning = false;
-        const timerDisplay = document.getElementById('timer-display'); const playPauseBtn = document.getElementById('play-pause-btn'); const resetBtn = document.getElementById('reset-btn');
-        function formatTime(s){return `${Math.floor(s/3600).toString().padStart(2,'0')}:${Math.floor(s%3600/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`}
-        function updateDisplay(){timerDisplay.textContent=formatTime(timeRemaining)}
-        function startTimer(){if(isRunning)return;isRunning=!0;playPauseBtn.textContent='Pausar';playPauseBtn.classList.remove('btn-outline-danger');playPauseBtn.classList.add('btn-danger');timerInterval=setInterval(()=>{timeRemaining--;updateDisplay();if(timeRemaining<=0){clearInterval(timerInterval);timerDisplay.textContent='ACABOU!';isRunning=!1;playPauseBtn.disabled=!0}},1e3)}
-        function pauseTimer(){if(!isRunning)return;isRunning=!1;playPauseBtn.textContent='Retomar';playPauseBtn.classList.remove('btn-danger');playPauseBtn.classList.add('btn-outline-danger');clearInterval(timerInterval)}
-        playPauseBtn.addEventListener('click',()=>{if(timeRemaining<=0)return;isRunning?pauseTimer():startTimer()});
-        resetBtn.addEventListener('click',()=>{if(!confirm('Tem certeza?'))return;clearInterval(timerInterval);isRunning=!1;timeRemaining=initialTime;updateDisplay();playPauseBtn.disabled=!1;playPauseBtn.textContent='Iniciar';playPauseBtn.classList.remove('btn-danger');playPauseBtn.classList.add('btn-outline-danger')});
+        const isTournament = {{ 'true' if game.game_type == 'tournament' else 'false' }};
+        const timerDisplay = document.getElementById('timer-display');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const resetBtn = document.getElementById('reset-btn');
+
+        if (isTournament) {
+            // Timer de torneio com níveis
+            const blindStructure = {{ blind_structure | tojson | safe }};
+            const blindDuration = {{ game.blind_duration }} * 60; // converter para segundos
+            let currentLevel = {{ game.current_level }};
+            let timeRemaining = blindDuration;
+            let timerInterval;
+            let isRunning = false;
+
+            const currentLevelDisplay = document.getElementById('current-level-display');
+            const blindsDisplay = document.getElementById('blinds-display');
+            const rebuyStatus = document.getElementById('rebuy-status');
+            const nextBlindsDisplay = document.getElementById('next-blinds-display');
+            const nextLevelBtn = document.getElementById('next-level-btn');
+
+            function formatTime(s) {
+                return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+            }
+
+            function updateDisplay() {
+                timerDisplay.textContent = formatTime(timeRemaining);
+                currentLevelDisplay.textContent = currentLevel;
+
+                if (blindStructure[currentLevel - 1]) {
+                    blindsDisplay.textContent = `${blindStructure[currentLevel - 1].sb}/${blindStructure[currentLevel - 1].bb}`;
+                }
+
+                // Atualizar status de rebuy
+                if (currentLevel < {{ game.rebuy_until_level }}) {
+                    rebuyStatus.className = 'badge bg-success fs-6';
+                    rebuyStatus.innerHTML = '🟢 PERÍODO DE REBUY ABERTO';
+                } else {
+                    rebuyStatus.className = 'badge bg-danger fs-6';
+                    rebuyStatus.innerHTML = '🔴 REBUY FECHADO';
+                    // Desabilitar botões de rebuy
+                    document.querySelectorAll('.rebuy-btn').forEach(btn => btn.disabled = true);
+                }
+
+                // Atualizar próximo nível
+                if (currentLevel < blindStructure.length) {
+                    nextBlindsDisplay.textContent = `Próximo: ${blindStructure[currentLevel].sb}/${blindStructure[currentLevel].bb}`;
+                } else {
+                    nextBlindsDisplay.textContent = 'Último nível';
+                }
+            }
+
+            function nextLevel() {
+                if (currentLevel < blindStructure.length) {
+                    currentLevel++;
+                    timeRemaining = blindDuration;
+                    updateDisplay();
+
+                    // Atualizar no servidor
+                    fetch(`/game/{{ game.id }}/update_level`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({level: currentLevel})
+                    });
+                }
+            }
+
+            function startTimer() {
+                if (isRunning) return;
+                isRunning = true;
+                playPauseBtn.textContent = 'Pausar';
+                playPauseBtn.classList.remove('btn-outline-danger');
+                playPauseBtn.classList.add('btn-danger');
+
+                timerInterval = setInterval(() => {
+                    timeRemaining--;
+                    updateDisplay();
+
+                    if (timeRemaining <= 0) {
+                        nextLevel();
+                        if (currentLevel > blindStructure.length) {
+                            clearInterval(timerInterval);
+                            isRunning = false;
+                            playPauseBtn.disabled = true;
+                        }
+                    }
+                }, 1000);
+            }
+
+            function pauseTimer() {
+                if (!isRunning) return;
+                isRunning = false;
+                playPauseBtn.textContent = 'Retomar';
+                playPauseBtn.classList.remove('btn-danger');
+                playPauseBtn.classList.add('btn-outline-danger');
+                clearInterval(timerInterval);
+            }
+
+            playPauseBtn.addEventListener('click', () => {
+                isRunning ? pauseTimer() : startTimer();
+            });
+
+            resetBtn.addEventListener('click', () => {
+                if (!confirm('Reiniciar o nível atual?')) return;
+                clearInterval(timerInterval);
+                isRunning = false;
+                timeRemaining = blindDuration;
+                updateDisplay();
+                playPauseBtn.textContent = 'Iniciar';
+                playPauseBtn.classList.remove('btn-danger');
+                playPauseBtn.classList.add('btn-outline-danger');
+            });
+
+            nextLevelBtn.addEventListener('click', () => {
+                if (!confirm('Avançar para o próximo nível?')) return;
+                nextLevel();
+            });
+
+            updateDisplay();
+        } else {
+            // Timer de cash game original
+            const initialTime = 4 * 60 * 60;
+            let timeRemaining = initialTime;
+            let timerInterval;
+            let isRunning = false;
+
+            function formatTime(s) {
+                return `${Math.floor(s/3600).toString().padStart(2,'0')}:${Math.floor(s%3600/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+            }
+
+            function updateDisplay() {
+                timerDisplay.textContent = formatTime(timeRemaining);
+            }
+
+            function startTimer() {
+                if (isRunning) return;
+                isRunning = true;
+                playPauseBtn.textContent = 'Pausar';
+                playPauseBtn.classList.remove('btn-outline-danger');
+                playPauseBtn.classList.add('btn-danger');
+
+                timerInterval = setInterval(() => {
+                    timeRemaining--;
+                    updateDisplay();
+
+                    if (timeRemaining <= 0) {
+                        clearInterval(timerInterval);
+                        timerDisplay.textContent = 'ACABOU!';
+                        isRunning = false;
+                        playPauseBtn.disabled = true;
+                    }
+                }, 1000);
+            }
+
+            function pauseTimer() {
+                if (!isRunning) return;
+                isRunning = false;
+                playPauseBtn.textContent = 'Retomar';
+                playPauseBtn.classList.remove('btn-danger');
+                playPauseBtn.classList.add('btn-outline-danger');
+                clearInterval(timerInterval);
+            }
+
+            playPauseBtn.addEventListener('click', () => {
+                if (timeRemaining <= 0) return;
+                isRunning ? pauseTimer() : startTimer();
+            });
+
+            resetBtn.addEventListener('click', () => {
+                if (!confirm('Tem certeza?')) return;
+                clearInterval(timerInterval);
+                isRunning = false;
+                timeRemaining = initialTime;
+                updateDisplay();
+                playPauseBtn.disabled = false;
+                playPauseBtn.textContent = 'Iniciar';
+                playPauseBtn.classList.remove('btn-danger');
+                playPauseBtn.classList.add('btn-outline-danger');
+            });
+        }
     });
 </script>
 {% endblock %}
