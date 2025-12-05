@@ -4,15 +4,88 @@
 <h2>Criar Novo Jogo</h2>
 <div class="card bg-dark border-secondary">
   <div class="card-body">
-    <form method="POST" action="{{ url_for('new_game') }}">
+    <form method="POST" action="{{ url_for('new_game') }}" id="gameForm">
       <div class="mb-3">
         <label for="name" class="form-label">Nome do Jogo</label>
         <input type="text" class="form-control" id="name" name="name" required placeholder="Ex: Poker & Resenha">
-        <div class="form-text">O valor do Buy-in e Rebuy é fixo em 50 fichas.</div>
       </div>
-      <button type="submit" class="btn btn-primary">Adicionar Jogadores</button>
+
+      <div class="mb-3">
+        <label class="form-label">Formato do Jogo</label>
+        <div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="game_type" id="cash" value="cash" checked>
+            <label class="form-check-label" for="cash">Cash Game</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="game_type" id="tournament" value="tournament">
+            <label class="form-check-label" for="tournament">Torneio</label>
+          </div>
+        </div>
+        <div class="form-text">O valor do Buy-in é fixo em 50 fichas.</div>
+      </div>
+
+      <!-- Opções de Torneio (escondidas por padrão) -->
+      <div id="tournamentOptions" style="display: none;">
+        <div class="mb-3">
+          <label for="blind_structure" class="form-label">Estrutura de Blinds</label>
+          <select class="form-select" id="blind_structure" name="blind_structure">
+            <option value="normal">Normal (5/10 → 10/20 → 15/30...)</option>
+            <option value="turbo">Turbo (10/20 → 15/30 → 25/50...)</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label for="blind_duration" class="form-label">Tempo por Nível (minutos)</label>
+          <select class="form-select" id="blind_duration" name="blind_duration">
+            <option value="5">5 minutos</option>
+            <option value="10" selected>10 minutos</option>
+            <option value="15">15 minutos</option>
+            <option value="20">20 minutos</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label for="rebuy_until_level" class="form-label">Período de Rebuy</label>
+          <select class="form-select" id="rebuy_until_level" name="rebuy_until_level">
+            <option value="4">Até o Nível 4</option>
+            <option value="5">Até o Nível 5</option>
+            <option value="6" selected>Até o Nível 6</option>
+            <option value="7">Até o Nível 7</option>
+            <option value="8">Até o Nível 8</option>
+          </select>
+          <div class="form-text">Máximo de 2 rebuys por jogador durante este período.</div>
+        </div>
+
+        <div class="mb-3">
+          <div class="alert alert-info">
+            <strong>📊 Premiação:</strong> 1º lugar (50%) | 2º lugar (30%) | 3º lugar (20%)
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Criar Jogo</button>
       <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancelar</a>
     </form>
   </div>
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const cashRadio = document.getElementById('cash');
+    const tournamentRadio = document.getElementById('tournament');
+    const tournamentOptions = document.getElementById('tournamentOptions');
+
+    function toggleTournamentOptions() {
+      if (tournamentRadio.checked) {
+        tournamentOptions.style.display = 'block';
+      } else {
+        tournamentOptions.style.display = 'none';
+      }
+    }
+
+    cashRadio.addEventListener('change', toggleTournamentOptions);
+    tournamentRadio.addEventListener('change', toggleTournamentOptions);
+  });
+</script>
 {% endblock %}

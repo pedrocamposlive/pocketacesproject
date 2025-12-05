@@ -7,6 +7,36 @@
     <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Voltar para Início</a>
   </div>
 </div>
+
+{% if game.game_type == 'tournament' and tournament_prizes %}
+<div class="card mb-4">
+    <div class="card-header bg-warning text-dark">
+        <h4 class="mb-0">🏆 Premiação do Torneio</h4>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <strong>Prize Pool Total:</strong> R$ {{ "%.2f"|format(prize_pool) }}
+            <small class="d-block text-muted mt-1">
+                ({{ results|length }} jogadores × {{ results[0].buy_ins_count if results else 0 }} buy-in + {{ (results|sum(attribute='rebuys_count')) }} rebuys)
+            </small>
+        </div>
+        <div class="list-group">
+            {% for prize in tournament_prizes %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-1">{{ prize.position }} {{ prize.name }}</h5>
+                    <small class="text-muted">Stack Final: {{ prize.stack }} fichas</small>
+                </div>
+                <div class="text-end">
+                    <h4 class="mb-0 text-success">R$ {{ "%.2f"|format(prize.value) }}</h4>
+                    <small class="text-muted">({{ prize.percentage }}%)</small>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
 <div class="card">
     <div class="card-header"><h4>Fechamento do Caixa</h4></div>
     <div class="card-body">
